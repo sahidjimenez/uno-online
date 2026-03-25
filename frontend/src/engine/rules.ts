@@ -33,7 +33,7 @@ export function canCounter(card: Card, state: GameState): boolean {
   if (card.card_type === 'wild4') return true
 
   // Reversa del mismo color que la última carta del stack
-  if (card.card_type === 'reverse' && card.card_color === top_card_color) return true
+  if (card.card_type === 'reverse' && card.card_color === state.current_color) return true
 
   return false
 }
@@ -42,7 +42,7 @@ export function canCounter(card: Card, state: GameState): boolean {
 export function canReverseCounter(card: Card, state: GameState): boolean {
   if (card.card_type !== 'reverse') return false
   if (state.draw_stack === 0) return false
-  return card.card_color === state.top_card_color
+  return card.card_color === state.current_color
 }
 
 // Calcula el siguiente jugador después de aplicar una carta

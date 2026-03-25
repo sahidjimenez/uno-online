@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
   if (stackActive) {
     // Con stack activo solo puedes apilar (+2, +4) o contraatacar con Reversa del mismo color
     const isAddable  = card.card_type === 'draw2' || card.card_type === 'wild4'
-    const isReversal = card.card_type === 'reverse' && card.card_color === gs.top_card_color
+    const isReversal = card.card_type === 'reverse' && card.card_color === gs.current_color
     if (!isAddable && !isReversal) return err('Debes apilar (+2/+4), contraatacar con Reversa del mismo color, o robar')
   } else {
     // Turno normal: mismo color, mismo tipo, o Wild
