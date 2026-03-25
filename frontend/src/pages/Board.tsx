@@ -41,11 +41,13 @@ export function Board({ session, onFinish }: Props) {
   const activeEffect = useMemo(() => {
     if (!lastEvent) return null
     if (lastEvent.id === dismissedEventId) return null
+    // Si es mi turno y hay stack activo, siempre mostrar draw_stack (incluye reverse counter)
+    if (isMyTurn && gameState && gameState.draw_stack > 0) return 'draw_stack' as const
     if (lastEvent.type === 'skip_applied')    return 'skip'    as const
     if (lastEvent.type === 'reverse_applied') return 'reverse' as const
     if (lastEvent.type === 'draw_stack_added' && isMyTurn) return 'draw_stack' as const
     return null
-  }, [lastEvent, isMyTurn, dismissedEventId])
+  }, [lastEvent, isMyTurn, dismissedEventId, gameState?.draw_stack])
 
   // Auto-dismiss skip/reverse después de 2s (no requieren acción del usuario)
   useEffect(() => {
@@ -234,7 +236,11 @@ export function Board({ session, onFinish }: Props) {
               color={gameState.top_card_color}
               type={gameState.top_card_type}
               size="lg"
-              animate="play"
+              animate={
+                ['skip','reverse','draw2','wild','wild4'].includes(gameState.top_card_type)
+                  ? 'play'
+                  : undefined
+              }
             />
           )}
           {gameState.draw_stack > 0 && (

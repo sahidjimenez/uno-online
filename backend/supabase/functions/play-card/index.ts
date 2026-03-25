@@ -103,9 +103,9 @@ Deno.serve(async (req) => {
   // 6. Calcular quién juega después
   let nextIdx: number
   if (reverseCounter) {
-    // La penalidad regresa: el turno va al jugador que mandó el stack (dirección anterior)
-    const oldDir = (newDirection * -1) as 1 | -1
-    nextIdx = ((currentIdx + oldDir * 2) % count + count) % count
+    // La penalidad regresa al jugador anterior: 1 paso en la nueva dirección
+    // (la dirección ya fue invertida, así que +1 paso nos lleva de vuelta al que envió el stack)
+    nextIdx = ((currentIdx + newDirection) % count + count) % count
   } else if (skipNext) {
     nextIdx = ((currentIdx + newDirection * 2) % count + count) % count
   } else {

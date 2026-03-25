@@ -32,7 +32,9 @@ export function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
+const NUMBER_TYPES = new Set(['0','1','2','3','4','5','6','7','8','9'])
+
 export function getStartCard(deck: DeckCard[]): { card: DeckCard; remaining: DeckCard[] } {
-  const idx = deck.findIndex(c => c.type !== 'wild' && c.type !== 'wild4')
+  const idx = deck.findIndex(c => NUMBER_TYPES.has(c.type))
   return { card: deck[idx], remaining: [...deck.slice(0, idx), ...deck.slice(idx + 1)] }
 }
