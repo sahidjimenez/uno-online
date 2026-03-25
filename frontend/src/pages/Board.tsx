@@ -15,8 +15,9 @@ interface Props {
 
 export function Board({ session, onFinish }: Props) {
   const { gameState, players, myHand, lastEvent, loading, isMyTurn } = useGame(session)
-  const [pendingWild, setPendingWild] = useState<Card | null>(null)
-  const [showEffect,  setShowEffect]  = useState(false)
+  const [pendingWild,      setPendingWild]      = useState<Card | null>(null)
+  const [dismissedEventId, setDismissedEventId] = useState<string | null>(null)
+  const [prevHandIds,      setPrevHandIds]       = useState<Set<string>>(new Set())
 
   // Navegar a GameOver cuando haya un ganador
   useEffect(() => {
@@ -24,6 +25,11 @@ export function Board({ session, onFinish }: Props) {
       onFinish(gameState.winner_id, players)
     }
   }, [gameState?.winner_id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Trackear qué cartas son nuevas en la mano para animarlas
+  useEffect(() => {
+    setPrevHandIds(new Set(myHand.map(c => c.id)))
+  }, [myHand])
 
   const opponents = useMemo(
     () => players.filter(p => p.id !== session.playerId),
@@ -34,11 +40,20 @@ export function Board({ session, onFinish }: Props) {
   // Detectar overlay de efecto al llegar un nuevo evento
   const activeEffect = useMemo(() => {
     if (!lastEvent) return null
+    if (lastEvent.id === dismissedEventId) return null
     if (lastEvent.type === 'skip_applied')    return 'skip'    as const
     if (lastEvent.type === 'reverse_applied') return 'reverse' as const
     if (lastEvent.type === 'draw_stack_added' && isMyTurn) return 'draw_stack' as const
     return null
-  }, [lastEvent, isMyTurn])
+  }, [lastEvent, isMyTurn, dismissedEventId])
+
+  // Auto-dismiss skip/reverse después de 2s (no requieren acción del usuario)
+  useEffect(() => {
+    if (activeEffect === 'skip' || activeEffect === 'reverse') {
+      const t = setTimeout(() => setDismissedEventId(lastEvent?.id ?? null), 2000)
+      return () => clearTimeout(t)
+    }
+  }, [activeEffect, lastEvent?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasReverseCounter = useMemo(() => {
     if (!gameState || !isMyTurn || gameState.draw_stack === 0) return false
@@ -215,9 +230,11 @@ export function Board({ session, onFinish }: Props) {
         <div className="flex flex-col items-center gap-2">
           {gameState.top_card_color && gameState.top_card_type && (
             <UnoCard
+              key={`${gameState.top_card_color}-${gameState.top_card_type}-${gameState.version}`}
               color={gameState.top_card_color}
               type={gameState.top_card_type}
               size="lg"
+              animate="play"
             />
           )}
           {gameState.draw_stack > 0 && (
@@ -248,6 +265,7 @@ export function Board({ session, onFinish }: Props) {
               type={card.card_type}
               size="md"
               playable={isMyTurn && canPlay(card, gameState)}
+              animate={!prevHandIds.has(card.id) ? 'draw' : undefined}
               onClick={isMyTurn ? () => playCard(card) : undefined}
             />
           ))}
@@ -281,8 +299,8 @@ export function Board({ session, onFinish }: Props) {
           color={gameState.top_card_color ?? undefined}
           canCounter={hasReverseCounter}
           onCounter={handleReverseCounter}
-          onDraw={async () => { await drawCard(); setShowEffect(false) }}
-          onContinue={() => setShowEffect(false)}
+          onDraw={async () => { await drawCard(); setDismissedEventId(lastEvent?.id ?? null) }}
+          onContinue={() => setDismissedEventId(lastEvent?.id ?? null)}
         />
       )}
     </div>

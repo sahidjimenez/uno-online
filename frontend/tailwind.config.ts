@@ -23,10 +23,13 @@ export default {
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },
       animation: {
-        'card-play':   'cardPlay 0.35s ease-out',
-        'card-draw':   'cardDraw 0.25s ease-out',
-        'stack-pulse': 'stackPulse 0.6s ease-in-out',
-        'bounce-in':   'bounceIn 0.4s cubic-bezier(0.34,1.56,0.64,1)',
+        'card-play':    'cardPlay 0.35s ease-out',
+        'card-draw':    'cardDraw 0.3s cubic-bezier(0.34,1.56,0.64,1)',
+        'stack-pulse':  'stackPulse 0.6s ease-in-out infinite',
+        'bounce-in':    'bounceIn 0.4s cubic-bezier(0.34,1.56,0.64,1)',
+        'fade-in':      'fadeIn 0.2s ease-out',
+        'slide-up':     'slideUp 0.3s cubic-bezier(0.34,1.56,0.64,1)',
+        'top-card-in':  'topCardIn 0.35s cubic-bezier(0.34,1.56,0.64,1)',
       },
       keyframes: {
         cardPlay: {
@@ -35,8 +38,8 @@ export default {
           '100%': { transform: 'translateY(0) scale(1)' },
         },
         cardDraw: {
-          '0%':   { transform: 'scale(0.8)', opacity: '0' },
-          '100%': { transform: 'scale(1)',   opacity: '1' },
+          '0%':   { transform: 'translateY(16px) scale(0.85)', opacity: '0' },
+          '100%': { transform: 'translateY(0) scale(1)',       opacity: '1' },
         },
         stackPulse: {
           '0%, 100%': { transform: 'scale(1)' },
@@ -45,6 +48,18 @@ export default {
         bounceIn: {
           '0%':   { transform: 'scale(0.5)', opacity: '0' },
           '100%': { transform: 'scale(1)',   opacity: '1' },
+        },
+        fadeIn: {
+          '0%':   { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        slideUp: {
+          '0%':   { transform: 'translateY(24px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)',    opacity: '1' },
+        },
+        topCardIn: {
+          '0%':   { transform: 'translateY(-20px) scale(0.9) rotate(-8deg)', opacity: '0' },
+          '100%': { transform: 'translateY(0) scale(1) rotate(0deg)',        opacity: '1' },
         },
       },
     },

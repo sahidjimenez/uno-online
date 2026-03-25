@@ -7,6 +7,7 @@ interface Props {
   size?:     'sm' | 'md' | 'lg'
   selected?: boolean
   playable?: boolean
+  animate?:  'draw' | 'play'
   onClick?:  () => void
 }
 
@@ -40,7 +41,7 @@ const SIZE = {
   lg: { card: 'w-20 h-28 rounded-2xl', text: 'text-3xl', oval: 'w-14 h-20' },
 }
 
-export function UnoCard({ color, type, faceDown, size = 'md', selected, playable, onClick }: Props) {
+export function UnoCard({ color, type, faceDown, size = 'md', selected, playable, animate, onClick }: Props) {
   const s = SIZE[size]
   const label = LABEL[type] ?? type
 
@@ -63,6 +64,8 @@ export function UnoCard({ color, type, faceDown, size = 'md', selected, playable
         selected  ? '-translate-y-3 ring-2 ring-white' : '',
         playable  ? `${COLOR_GLOW[color]} hover:-translate-y-2 cursor-pointer` : '',
         !playable && onClick ? 'opacity-50 cursor-not-allowed' : '',
+        animate === 'draw' ? 'animate-card-draw' : '',
+        animate === 'play' ? 'animate-card-play' : '',
       ].join(' ')}
     >
       {/* Oval decorativo */}

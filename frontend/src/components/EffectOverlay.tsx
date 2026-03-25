@@ -28,7 +28,7 @@ const COLOR_TEXT: Record<CardColor, string> = {
 
 export function EffectOverlay({ type, byPlayer, stack, color, canCounter, onCounter, onDraw, onContinue }: Props) {
   return (
-    <div className="fixed inset-0 bg-black/55 flex flex-col items-center justify-center z-40 px-4">
+    <div className="fixed inset-0 bg-black/55 flex flex-col items-center justify-center z-40 px-4 animate-fade-in">
 
       {/* Carta grande central */}
       <div className={`
@@ -45,7 +45,7 @@ export function EffectOverlay({ type, byPlayer, stack, color, canCounter, onCoun
       </div>
 
       {/* Banner */}
-      <div className="bg-surface rounded-2xl px-5 py-4 w-full max-w-xs text-center mb-3">
+      <div className="bg-surface rounded-2xl px-5 py-4 w-full max-w-xs text-center mb-3 animate-slide-up">
         {type === 'skip' && (
           <>
             <p className="text-white text-lg font-bold">¡Turno saltado!</p>
