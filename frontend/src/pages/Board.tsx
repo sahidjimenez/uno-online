@@ -4,7 +4,7 @@ import { UnoCard } from '../components/UnoCard'
 import { OpponentPanel } from '../components/OpponentPanel'
 import { ColorPicker } from '../components/ColorPicker'
 import { EffectOverlay } from '../components/EffectOverlay'
-import { canPlay, canReverseCounter } from '../engine/rules'
+import { canPlay } from '../engine/rules'
 import { supabase } from '../lib/supabase'
 import type { LocalSession, Card, CardColor, Player } from '../types'
 
@@ -37,31 +37,22 @@ export function Board({ session, onFinish }: Props) {
   )
   const me = players.find(p => p.id === session.playerId)
 
-  // Detectar overlay de efecto al llegar un nuevo evento
+  // Overlay solo para skip y reverse — solo animación informativa, se cierra solo
   const activeEffect = useMemo(() => {
     if (!lastEvent) return null
     if (lastEvent.id === dismissedEventId) return null
-    // Si es mi turno y hay stack activo, siempre mostrar draw_stack (incluye reverse counter)
-    if (isMyTurn && gameState && gameState.draw_stack > 0) return 'draw_stack' as const
     if (lastEvent.type === 'skip_applied')    return 'skip'    as const
     if (lastEvent.type === 'reverse_applied') return 'reverse' as const
-    if (lastEvent.type === 'draw_stack_added' && isMyTurn) return 'draw_stack' as const
     return null
-  }, [lastEvent, isMyTurn, dismissedEventId, gameState?.draw_stack])
+  }, [lastEvent, dismissedEventId])
 
-  // Auto-dismiss skip/reverse después de 2s — solo si NO es un reverse counter con stack activo
+  // Auto-dismiss skip/reverse tras 1.5s
   useEffect(() => {
-    const isReverseCounter = lastEvent?.type === 'reverse_applied' && (gameState?.draw_stack ?? 0) > 0
-    if ((activeEffect === 'skip' || activeEffect === 'reverse') && !isReverseCounter) {
-      const t = setTimeout(() => setDismissedEventId(lastEvent?.id ?? null), 2000)
+    if (activeEffect === 'skip' || activeEffect === 'reverse') {
+      const t = setTimeout(() => setDismissedEventId(lastEvent?.id ?? null), 1500)
       return () => clearTimeout(t)
     }
-  }, [activeEffect, lastEvent?.id, gameState?.draw_stack]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const hasReverseCounter = useMemo(() => {
-    if (!gameState || !isMyTurn || gameState.draw_stack === 0) return false
-    return myHand.some(c => canReverseCounter(c, gameState))
-  }, [gameState, isMyTurn, myHand])
+  }, [activeEffect, lastEvent?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function playCard(card: Card, chosenColor?: CardColor) {
     if (!isMyTurn || !gameState) return
@@ -108,9 +99,8 @@ export function Board({ session, onFinish }: Props) {
 
   async function handleReverseCounter() {
     if (!gameState) return
-    const revCard = myHand.find(c => canReverseCounter(c, gameState))
+    const revCard = myHand.find(c => c.card_type === 'reverse' && c.card_color === gameState.top_card_color)
     if (revCard) await playCard(revCard)
-    setShowEffect(false)
   }
 
   if (loading || !gameState) {
@@ -245,8 +235,12 @@ export function Board({ session, onFinish }: Props) {
             />
           )}
           {gameState.draw_stack > 0 && (
-            <div className="animate-stack-pulse bg-uno-red text-white text-xs font-black px-3 py-1 rounded-full">
+            <div className={[
+              'animate-stack-pulse text-white text-sm font-black px-4 py-1.5 rounded-full',
+              isMyTurn ? 'bg-uno-red ring-2 ring-white scale-110' : 'bg-uno-red/70',
+            ].join(' ')}>
               +{gameState.draw_stack} acumulado
+              {isMyTurn && ' — ¡te toca!'}
             </div>
           )}
           <div className="flex items-center gap-1">
@@ -297,17 +291,12 @@ export function Board({ session, onFinish }: Props) {
         />
       )}
 
-      {/* Overlay de efectos */}
+      {/* Overlay informativo — solo animación, no bloquea interacción */}
       {activeEffect && (
         <EffectOverlay
           type={activeEffect}
           byPlayer={players.find(p => p.id === lastEvent?.player_id)?.name}
-          stack={gameState.draw_stack}
           color={gameState.top_card_color ?? undefined}
-          canCounter={hasReverseCounter}
-          onCounter={handleReverseCounter}
-          onDraw={async () => { await drawCard(); setDismissedEventId(lastEvent?.id ?? null) }}
-          onContinue={() => setDismissedEventId(lastEvent?.id ?? null)}
         />
       )}
     </div>
