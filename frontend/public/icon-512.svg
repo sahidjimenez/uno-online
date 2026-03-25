@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Fondo -->
+  <rect width="512" height="512" rx="80" fill="#0F1923"/>
+  <!-- Carta UNO (forma redondeada) -->
+  <rect x="72" y="52" width="368" height="408" rx="48" fill="#DC2626"/>
+  <!-- Elipse central blanca -->
+  <ellipse cx="256" cy="256" rx="140" ry="168" fill="white" transform="rotate(-25 256 256)"/>
+  <!-- Texto UNO -->
+  <text x="256" y="288" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="112" fill="#DC2626" letter-spacing="-2">UNO</text>
+  <!-- Puntos decorativos esquinas -->
+  <circle cx="116" cy="100" r="22" fill="white" opacity="0.9"/>
+  <circle cx="396" cy="412" r="22" fill="white" opacity="0.9"/>
+</svg>

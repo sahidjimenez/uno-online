@@ -1,0 +1,14 @@
+[functions.start-game]
+verify_jwt = false
+
+[functions.play-card]
+verify_jwt = false
+
+[functions.draw-card]
+verify_jwt = false
+
+[functions.call-uno]
+verify_jwt = false
+
+[functions.penalize-uno]
+verify_jwt = false

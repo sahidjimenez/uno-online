@@ -1,0 +1,54 @@
+openapi: 3.0.0
+info:
+  title: "[NOMBRE DEL PROYECTO] API"
+  version: "1.0.0"
+  description: "API contract — fuente de verdad entre Frontend y Backend"
+
+servers:
+  - url: http://localhost:3000/api
+    description: Desarrollo local
+  - url: https://[tu-backend].com/api
+    description: Producción
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+
+    # Agregar schemas de dominio aquí
+    # User:
+    #   type: object
+    #   properties:
+    #     id:
+    #       type: string
+    #     email:
+    #       type: string
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        200:
+          description: API funcionando
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  # Agregar endpoints aquí
