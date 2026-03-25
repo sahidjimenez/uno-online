@@ -68,8 +68,13 @@ export function useGame(session: LocalSession | null) {
       }, payload => {
         const ev = payload.new as GameEvent
         setLastEvent(ev)
-        // Recargar mano cuando se juega o roba una carta
-        if (ev.type === 'card_played' || ev.type === 'card_drawn') {
+        // Recargar mano cuando cambia (carta jugada de cualquier tipo, o robada)
+        const handChangingEvents = new Set([
+          'card_played', 'card_drawn',
+          'reverse_applied', 'draw_stack_added', 'draw_stack_resolved',
+          'color_chosen', 'uno_penalty',
+        ])
+        if (handChangingEvents.has(ev.type)) {
           loadMyHand()
         }
       })

@@ -49,13 +49,14 @@ export function Board({ session, onFinish }: Props) {
     return null
   }, [lastEvent, isMyTurn, dismissedEventId, gameState?.draw_stack])
 
-  // Auto-dismiss skip/reverse después de 2s (no requieren acción del usuario)
+  // Auto-dismiss skip/reverse después de 2s — solo si NO es un reverse counter con stack activo
   useEffect(() => {
-    if (activeEffect === 'skip' || activeEffect === 'reverse') {
+    const isReverseCounter = lastEvent?.type === 'reverse_applied' && (gameState?.draw_stack ?? 0) > 0
+    if ((activeEffect === 'skip' || activeEffect === 'reverse') && !isReverseCounter) {
       const t = setTimeout(() => setDismissedEventId(lastEvent?.id ?? null), 2000)
       return () => clearTimeout(t)
     }
-  }, [activeEffect, lastEvent?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeEffect, lastEvent?.id, gameState?.draw_stack]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasReverseCounter = useMemo(() => {
     if (!gameState || !isMyTurn || gameState.draw_stack === 0) return false
