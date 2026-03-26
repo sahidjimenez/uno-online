@@ -41,12 +41,13 @@ Deno.serve(async (req) => {
   // 5. Verificar que NO cantó UNO
   if (accused.has_called_uno) return err('El jugador ya cantó UNO — no hay penalización')
 
-  // 6. Dar 2 cartas de penalidad al acusado
+  // 6. Dar 4 cartas de penalidad al acusado (reglas europeas)
+  const PENALTY_CARDS = 4
   let drawPileCount = gs.draw_pile_count ?? 108
-  if (drawPileCount < 2) drawPileCount = createDeck().length
+  if (drawPileCount < PENALTY_CARDS) drawPileCount = createDeck().length
 
   const freshDeck = shuffle(createDeck())
-  const penaltyCards = freshDeck.slice(0, 2).map(c => ({
+  const penaltyCards = freshDeck.slice(0, PENALTY_CARDS).map(c => ({
     room_id,
     player_id:  accused_id,
     card_color: c.color,
@@ -58,7 +59,7 @@ Deno.serve(async (req) => {
 
   // 7. Actualizar draw_pile_count en game_state
   await supabase.from('game_state')
-    .update({ draw_pile_count: drawPileCount - 2, updated_at: new Date().toISOString() })
+    .update({ draw_pile_count: drawPileCount - PENALTY_CARDS, updated_at: new Date().toISOString() })
     .eq('room_id', room_id)
 
   // 8. Registrar evento
@@ -66,8 +67,8 @@ Deno.serve(async (req) => {
     room_id,
     player_id: accuser_id,
     type:      'uno_penalty',
-    payload:   { accused_id, accuser_id, cards_given: 2 },
+    payload:   { accused_id, accuser_id, cards_given: PENALTY_CARDS },
   })
 
-  return json({ ok: true, cards_given: 2 })
+  return json({ ok: true, cards_given: PENALTY_CARDS })
 })

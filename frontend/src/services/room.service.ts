@@ -15,9 +15,17 @@ export function clearSession() {
 }
 
 // Crear sala + unirse como host
-export async function createRoom(playerName: string): Promise<LocalSession> {
+export async function createRoom(
+  playerName: string,
+  isPrivate = false,
+  password?: string,
+): Promise<LocalSession> {
   await ensureAnonSession()
-  const { data, error } = await supabase.rpc('create_room', { player_name: playerName })
+  const { data, error } = await supabase.rpc('create_room', {
+    player_name: playerName,
+    p_is_private: isPrivate,
+    p_password:   password ?? null,
+  })
   if (error) throw new Error(error.message)
 
   const session: LocalSession = {
@@ -30,12 +38,17 @@ export async function createRoom(playerName: string): Promise<LocalSession> {
   return session
 }
 
-// Unirse a sala con código
-export async function joinRoom(code: string, playerName: string): Promise<LocalSession> {
+// Unirse a sala con código (y contraseña si es sala privada)
+export async function joinRoom(
+  code: string,
+  playerName: string,
+  password?: string,
+): Promise<LocalSession> {
   await ensureAnonSession()
   const { data, error } = await supabase.rpc('join_room', {
     p_code:      code.toUpperCase().trim(),
     player_name: playerName,
+    p_password:  password ?? null,
   })
   if (error) throw new Error(error.message)
 
@@ -44,6 +57,23 @@ export async function joinRoom(code: string, playerName: string): Promise<LocalS
     roomId:   data.room_id,
     roomCode: code.toUpperCase().trim(),
     name:     playerName,
+  }
+  saveSession(session)
+  return session
+}
+
+// Buscar partida pública disponible (matchmaking)
+export async function findPublicRoom(playerName: string): Promise<LocalSession & { matched?: boolean }> {
+  await ensureAnonSession()
+  const { data, error } = await supabase.rpc('find_public_room', { player_name: playerName })
+  if (error) throw new Error(error.message)
+
+  const session: LocalSession & { matched?: boolean } = {
+    playerId: data.player_id,
+    roomId:   data.room_id,
+    roomCode: data.room_code,
+    name:     playerName,
+    matched:  data.matched ?? false,
   }
   saveSession(session)
   return session

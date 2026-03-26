@@ -1,5 +1,17 @@
 import type { CardColor, CardType, Card, GameState } from '../types'
 
+const NUMBER_TYPES = new Set(['0','1','2','3','4','5','6','7','8','9'])
+
+// ¿Es una carta de número? Solo números pueden ser la jugada ganadora.
+export function isNumberCard(type: CardType): boolean {
+  return NUMBER_TYPES.has(type)
+}
+
+// ¿Se puede ganar jugando esta carta? (regla europea: solo números)
+export function canWinWith(card: Card): boolean {
+  return isNumberCard(card.card_type)
+}
+
 // ¿Puede jugarse esta carta sobre el estado actual?
 export function canPlay(card: Card, state: GameState): boolean {
   const { current_color, top_card_type, draw_stack } = state

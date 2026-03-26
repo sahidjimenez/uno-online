@@ -29,6 +29,7 @@ export interface Room {
   status:      RoomStatus
   host_id:     string | null
   max_players: number
+  is_private:  boolean
   created_at:  string
   updated_at:  string
 }

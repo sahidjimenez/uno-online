@@ -4,7 +4,7 @@ import { UnoCard } from '../components/UnoCard'
 import { OpponentPanel } from '../components/OpponentPanel'
 import { ColorPicker } from '../components/ColorPicker'
 import { EffectOverlay } from '../components/EffectOverlay'
-import { canPlay } from '../engine/rules'
+import { canPlay, canWinWith } from '../engine/rules'
 import { supabase } from '../lib/supabase'
 import type { LocalSession, Card, CardColor, Player } from '../types'
 
@@ -18,6 +18,7 @@ export function Board({ session, onFinish }: Props) {
   const [pendingWild,      setPendingWild]      = useState<Card | null>(null)
   const [dismissedEventId, setDismissedEventId] = useState<string | null>(null)
   const [prevHandIds,      setPrevHandIds]       = useState<Set<string>>(new Set())
+  const [winBlockMsg,      setWinBlockMsg]       = useState<string | null>(null)
 
   // Navegar a GameOver cuando haya un ganador
   useEffect(() => {
@@ -57,6 +58,13 @@ export function Board({ session, onFinish }: Props) {
   async function playCard(card: Card, chosenColor?: CardColor) {
     if (!isMyTurn || !gameState) return
     if (!canPlay(card, gameState)) return
+
+    // Regla europea: solo se puede ganar con carta de número
+    if (myHand.length === 1 && !canWinWith(card)) {
+      setWinBlockMsg('¡Solo puedes ganar con una carta de número!')
+      setTimeout(() => setWinBlockMsg(null), 2500)
+      return
+    }
 
     if ((card.card_type === 'wild' || card.card_type === 'wild4') && !chosenColor) {
       setPendingWild(card)
@@ -282,6 +290,15 @@ export function Board({ session, onFinish }: Props) {
           </button>
         )}
       </div>
+
+      {/* Aviso de victoria bloqueada */}
+      {winBlockMsg && (
+        <div className="fixed top-16 left-0 right-0 flex justify-center z-50 pointer-events-none">
+          <div className="bg-uno-red text-white text-sm font-bold px-5 py-2.5 rounded-full shadow-lg animate-bounce-in">
+            {winBlockMsg}
+          </div>
+        </div>
+      )}
 
       {/* Selector de color para Wild */}
       {pendingWild && (
