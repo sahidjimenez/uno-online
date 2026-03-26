@@ -54,6 +54,9 @@ Deno.serve(async (req) => {
   const { error: insertErr } = await supabase.from('hands').insert(newCards)
   if (insertErr) return err(`Error dando cartas: ${insertErr.message}`, 500)
 
+  // Resetear has_called_uno — al robar ya no vale el UNO cantado
+  await supabase.from('players').update({ has_called_uno: false }).eq('id', player_id)
+
   // 6. Actualizar game_state
   const newVersion = gs.version + 1
   await supabase.from('game_state').update({

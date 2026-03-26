@@ -64,8 +64,9 @@ Deno.serve(async (req) => {
 
   switch (card.card_type as CardType) {
     case 'skip':
-      skipNext = true
-      newColor = card.card_color
+      skipNext     = true
+      newColor     = card.card_color
+      newEventType = 'skip_applied'
       break
     case 'reverse':
       if (stackActive) {
@@ -121,6 +122,11 @@ Deno.serve(async (req) => {
     .from('hands').select('*', { count: 'exact', head: true }).eq('player_id', player_id)
 
   const won = remaining === 0
+
+  // Resetear has_called_uno si le quedan 2+ cartas (cantó UNO pero luego robó en otro turno)
+  if (!won && (remaining ?? 0) > 1) {
+    await supabase.from('players').update({ has_called_uno: false }).eq('id', player_id)
+  }
 
   // 9. Actualizar game_state
   const newVersion = gs.version + 1
