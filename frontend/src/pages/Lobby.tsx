@@ -74,30 +74,25 @@ export function Lobby({ session, onStart, onLeave }: Props) {
       {/* Lista jugadores */}
       <p className="text-gray text-xs mb-3">Jugadores ({players.length}/8)</p>
       <div className="flex flex-col gap-2 flex-1">
-        {Array.from({ length: 8 }).map((_, i) => {
-          const p = players[i]
-          return (
-            <div key={i} className="bg-surface rounded-xl px-4 py-3 flex items-center gap-3">
-              {p ? (
-                <>
-                  <div className={`${AVATAR_COLORS[i]} w-9 h-9 rounded-full`} />
-                  <span className="text-white font-bold text-sm flex-1">{p.name}</span>
-                  {i === 0 && (
-                    <span className="bg-uno-green text-white text-[10px] font-bold px-2 py-0.5 rounded-md">HOST</span>
-                  )}
-                  {p.id === session.playerId && i !== 0 && (
-                    <span className="text-gray text-[10px]">Tú</span>
-                  )}
-                </>
-              ) : (
-                <>
-                  <div className="w-9 h-9 rounded-full bg-surface2 border border-dashed border-border" />
-                  <span className="text-gray text-sm">Esperando…</span>
-                </>
-              )}
-            </div>
-          )
-        })}
+        {players.map((p, i) => (
+          <div key={p.id} className="bg-surface rounded-xl px-4 py-3 flex items-center gap-3">
+            <div className={`${AVATAR_COLORS[i % AVATAR_COLORS.length]} w-9 h-9 rounded-full`} />
+            <span className="text-white font-bold text-sm flex-1">{p.name}</span>
+            {i === 0 && (
+              <span className="bg-uno-green text-white text-[10px] font-bold px-2 py-0.5 rounded-md">HOST</span>
+            )}
+            {p.id === session.playerId && i !== 0 && (
+              <span className="text-gray text-[10px]">Tú</span>
+            )}
+          </div>
+        ))}
+        {/* Slot "Esperando" siempre visible si hay espacio */}
+        {players.length < 8 && (
+          <div className="bg-surface rounded-xl px-4 py-3 flex items-center gap-3 opacity-50">
+            <div className="w-9 h-9 rounded-full bg-surface2 border border-dashed border-border" />
+            <span className="text-gray text-sm">Esperando jugadores…</span>
+          </div>
+        )}
       </div>
 
       {/* Acciones */}

@@ -129,3 +129,19 @@ export async function fetchGameState(roomId: string): Promise<GameState | null> 
 export async function sendHeartbeat(playerId: string) {
   await supabase.rpc('heartbeat', { p_player_id: playerId })
 }
+
+// Listar salas públicas disponibles (para el modal de búsqueda)
+export interface PublicRoom {
+  room_id:      string
+  room_code:    string
+  player_count: number
+  max_players:  number
+  created_at:   string
+}
+
+export async function listPublicRooms(): Promise<PublicRoom[]> {
+  await ensureAnonSession()
+  const { data, error } = await supabase.rpc('list_public_rooms')
+  if (error) throw new Error(error.message)
+  return (data as PublicRoom[]) ?? []
+}

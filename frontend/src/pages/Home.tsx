@@ -1,9 +1,97 @@
 import { useState } from 'react'
-import { createRoom, joinRoom, findPublicRoom } from '../services/room.service'
+import { createRoom, joinRoom, findPublicRoom, listPublicRooms } from '../services/room.service'
+import type { PublicRoom } from '../services/room.service'
 import type { LocalSession } from '../types'
 
 interface Props {
   onEnter: (session: LocalSession, mode: 'lobby') => void
+}
+
+function RoomListModal({
+  rooms,
+  loading,
+  onRefresh,
+  onJoin,
+  onCreate,
+  onClose,
+}: {
+  rooms:     PublicRoom[]
+  loading:   boolean
+  onRefresh: () => void
+  onJoin:    (room: PublicRoom) => void
+  onCreate:  () => void
+  onClose:   () => void
+}) {
+  function timeAgo(iso: string) {
+    const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+    if (mins < 1) return 'Ahora mismo'
+    if (mins === 1) return 'Hace 1 min'
+    return `Hace ${mins} min`
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/75 z-50 flex items-end justify-center" onClick={onClose}>
+      <div
+        className="bg-surface w-full max-w-md rounded-t-2xl px-6 pt-5 pb-8 max-h-[75vh] flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-white font-black text-lg">Partidas Disponibles</h2>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onRefresh}
+              disabled={loading}
+              className="text-gray text-xs hover:text-white transition-colors disabled:opacity-40"
+            >
+              {loading ? '…' : '↻ Actualizar'}
+            </button>
+            <button onClick={onClose} className="text-gray text-xl leading-none">✕</button>
+          </div>
+        </div>
+
+        {/* Lista de salas */}
+        <div className="flex-1 overflow-y-auto flex flex-col gap-2 min-h-0">
+          {loading && rooms.length === 0 && (
+            <p className="text-gray text-sm text-center py-8">Buscando partidas…</p>
+          )}
+          {!loading && rooms.length === 0 && (
+            <div className="text-center py-8">
+              <p className="text-gray text-sm mb-1">No hay partidas disponibles</p>
+              <p className="text-gray text-xs">Crea una nueva sala para empezar</p>
+            </div>
+          )}
+          {rooms.map(room => (
+            <div
+              key={room.room_id}
+              className="bg-surface2 rounded-xl px-4 py-3 flex items-center justify-between border border-border"
+            >
+              <div>
+                <p className="text-uno-yellow font-black tracking-widest text-sm">{room.room_code}</p>
+                <p className="text-gray text-xs mt-0.5">
+                  {room.player_count}/{room.max_players} jugadores · {timeAgo(room.created_at)}
+                </p>
+              </div>
+              <button
+                onClick={() => onJoin(room)}
+                className="bg-uno-red text-white text-xs font-bold px-3 py-2 rounded-lg hover:brightness-110 active:scale-95 transition-all"
+              >
+                Unirse
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* Crear sala */}
+        <button
+          onClick={onCreate}
+          className="mt-4 w-full bg-uno-yellow text-black font-black py-3 rounded-xl hover:brightness-110 transition-all"
+        >
+          + Crear nueva sala
+        </button>
+      </div>
+    </div>
+  )
 }
 
 function RulesModal({ onClose }: { onClose: () => void }) {
@@ -112,6 +200,9 @@ export function Home({ onEnter }: Props) {
   const [error,      setError]      = useState('')
   const [showRules,  setShowRules]  = useState(false)
   const [tab,        setTab]        = useState<'create' | 'join' | 'find'>('find')
+  const [showRoomList, setShowRoomList] = useState(false)
+  const [publicRooms,  setPublicRooms]  = useState<PublicRoom[]>([])
+  const [loadingRooms, setLoadingRooms] = useState(false)
 
   async function handleCreate() {
     if (!name.trim()) return setError('Escribe tu nombre')
@@ -147,10 +238,56 @@ export function Home({ onEnter }: Props) {
     } finally { setLoading(false) }
   }
 
+  async function loadRooms() {
+    setLoadingRooms(true)
+    try {
+      const rooms = await listPublicRooms()
+      setPublicRooms(rooms)
+    } catch {
+      setPublicRooms([])
+    } finally {
+      setLoadingRooms(false)
+    }
+  }
+
+  async function handleOpenFind() {
+    if (!name.trim()) return setError('Escribe tu nombre')
+    setError('')
+    setShowRoomList(true)
+    await loadRooms()
+  }
+
+  async function handleJoinFromModal(room: PublicRoom) {
+    setShowRoomList(false)
+    setLoading(true); setError('')
+    try {
+      const session = await joinRoom(room.room_code, name.trim())
+      onEnter(session, 'lobby')
+    } catch (e: any) {
+      setError(e.message)
+    } finally { setLoading(false) }
+  }
+
+  function handleCreateFromModal() {
+    setShowRoomList(false)
+    setTab('create')
+  }
+
   return (
     <div className="min-h-screen bg-bg flex flex-col items-center justify-center px-8">
 
       {showRules && <RulesModal onClose={() => setShowRules(false)} />}
+
+      {showRoomList && (
+        <RoomListModal
+          rooms={publicRooms}
+          loading={loadingRooms}
+          onRefresh={loadRooms}
+          onJoin={handleJoinFromModal}
+          onCreate={handleCreateFromModal}
+          onClose={() => setShowRoomList(false)}
+        />
+      )}
 
       {/* Logo + botón reglas */}
       <div className="relative mb-4">
@@ -205,7 +342,7 @@ export function Home({ onEnter }: Props) {
             Entra directo a una sala pública disponible. Si no hay ninguna, se crea una nueva.
           </p>
           <button
-            onClick={handleFind}
+            onClick={handleOpenFind}
             disabled={loading}
             className="w-full bg-uno-yellow text-black font-black py-4 rounded-xl hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 text-base"
           >
@@ -233,8 +370,8 @@ export function Home({ onEnter }: Props) {
               ].join(' ')}
             >
               <span className={[
-                'absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform',
-                isPrivate ? 'translate-x-5' : 'translate-x-0.5',
+                'absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform',
+                isPrivate ? 'translate-x-5' : 'translate-x-0',
               ].join(' ')} />
             </button>
           </div>
