@@ -4,7 +4,7 @@ import { GameOver } from './pages/GameOver'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import type { LocalSession, Player } from './types'
 
-export function OfflineApp() {
+export function OfflineApp({ onOnline }: { onOnline: () => void }) {
   const [name, setName] = useState('')
   const [playerCount, setPlayerCount] = useState(4)
   const [session, setSession] = useState<LocalSession | null>(null)
@@ -35,6 +35,7 @@ export function OfflineApp() {
           </fieldset>
           <button className="local-start-button w-full bg-uno-red font-bold py-4 rounded-xl hover:brightness-110">Jugar ahora</button>
         </form>
+        <button onClick={onOnline} className="mode-switch-button">Jugar multijugador con amigos →</button>
         <p className="text-gray text-xs mt-5">Modo local · {playerCount} jugadores · Solo números para ganar</p>
       </div>
     </main>
@@ -43,7 +44,7 @@ export function OfflineApp() {
     onRematch={start} onLobby={() => { setSession(null); setResult(null) }} />
   return <ErrorBoundary onReset={() => setSession(null)}>
     <div className="relative">
-      <Board key={session.roomId} session={session} onFinish={(winner, players) => setResult({ winner, players })} />
+      <Board local key={session.roomId} session={session} onFinish={(winner, players) => setResult({ winner, players })} />
       <button onClick={() => setSession(null)} className="fixed bottom-3 left-3 z-10 text-xs text-gray bg-surface rounded-full px-3 py-2">← Salir</button>
     </div>
   </ErrorBoundary>

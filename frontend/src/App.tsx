@@ -1,3 +1,4 @@
+import { StatusScreen } from './components/StatusScreen'
 import { OFFLINE_MODE } from './lib/offline'
 import { OfflineApp } from './OfflineApp'
 import { useState, useEffect } from 'react'
@@ -12,12 +13,13 @@ import type { LocalSession, Player } from './types'
 
 type Screen = 'home' | 'lobby' | 'board' | 'gameover'
 
-function OnlineApp() {
+function OnlineApp({ onLocal }: { onLocal: () => void }) {
   const [screen,   setScreen]   = useState<Screen>('home')
   const [session,  setSession]  = useState<LocalSession | null>(null)
   const [winner,   setWinner]   = useState<string | null>(null)
   const [players,  setPlayers]  = useState<Player[]>([])
   const [ready,    setReady]    = useState(false)
+  const [connectionError, setConnectionError] = useState(false)
 
   useEffect(() => {
     ensureAnonSession().then(async () => {
@@ -44,19 +46,20 @@ function OnlineApp() {
         }
       }
       setReady(true)
-    })
+    }).catch(() => { setConnectionError(true); setReady(true) })
   }, [])
 
-  if (!ready) {
-    return (
-      <div className="min-h-screen bg-bg flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-uno-red border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
-  }
+  if (connectionError) return <StatusScreen title="No pudimos conectar" description="Puedes jugar con bots mientras vuelve la conexión.">
+    <button onClick={onLocal} className="nexo-primary-button">Jugar local con bots</button>
+    <button onClick={() => window.location.reload()} className="nexo-secondary-button">Reintentar conexión</button>
+  </StatusScreen>
+  if (!ready) return <StatusScreen loading title="Conectando con la mesa" description="Preparando tu lugar en NEXO…">
+    <button onClick={onLocal} className="nexo-secondary-button">Jugar local con bots</button>
+  </StatusScreen>
 
   return (
     <>
+      {screen === 'home' && <button onClick={onLocal} className="mode-switch-button online-mode-switch">← Jugar local con bots</button>}
       {screen === 'home' && (
         <Home
           onEnter={(s, mode) => {
@@ -100,4 +103,7 @@ function OnlineApp() {
   )
 }
 
-export default function App() { return OFFLINE_MODE ? <OfflineApp /> : <OnlineApp /> }
+export default function App() {
+  const [local, setLocal] = useState(OFFLINE_MODE)
+  return local ? <OfflineApp onOnline={() => setLocal(false)} /> : <OnlineApp onLocal={() => setLocal(true)} />
+}

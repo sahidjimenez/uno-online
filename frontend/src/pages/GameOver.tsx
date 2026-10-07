@@ -14,62 +14,20 @@ export function GameOver({ session, players, winnerId, onRematch, onLobby }: Pro
 
   const sorted = [...players].sort((a, b) => (a.hand_count ?? 0) - (b.hand_count ?? 0))
 
-  return (
-    <div className="min-h-screen bg-bg flex flex-col items-center px-6 pt-10">
-
-      {/* Confetti decorativo */}
-      <div className="absolute top-0 left-0 w-full h-40 overflow-hidden pointer-events-none">
-        {Array.from({ length: 16 }).map((_, i) => (
-          <div
-            key={i}
-            className={`absolute w-2 h-3 opacity-70 ${
-              ['bg-uno-red','bg-uno-yellow','bg-uno-blue','bg-uno-green'][i % 4]
-            }`}
-            style={{
-              left: `${i * 6.5}%`,
-              top:  `${20 + Math.sin(i) * 30}%`,
-              transform: `rotate(${i * 23}deg)`,
-            }}
-          />
-        ))}
-      </div>
-
-      {/* Trofeo */}
-      <div className="text-7xl mb-2">🏆</div>
-      <p className="text-gray text-sm mb-1">¡Ganó!</p>
-      <p className="text-uno-yellow text-3xl font-black mb-2">{winner?.name ?? '?'}</p>
-      {iWon && <p className="text-uno-green text-sm font-bold mb-6">¡Esa eres tú! 🎉</p>}
-      {!iWon && <p className="text-gray text-sm mb-6">Mejor suerte la próxima</p>}
-
-      {/* Tabla de resultados */}
-      <div className="w-full bg-surface rounded-2xl p-4 mb-6">
-        <p className="text-gray text-xs mb-3">Puntuaciones finales</p>
-        {sorted.map((p, i) => (
-          <div key={p.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-            <div className="flex items-center gap-3">
-              <span className="text-gray text-sm w-5">{i + 1}</span>
-              <span className={`text-sm font-bold ${p.id === winnerId ? 'text-uno-yellow' : 'text-white'}`}>
-                {p.name} {p.id === winnerId && '🏆'} {p.id === session.playerId && '(tú)'}
-              </span>
-            </div>
-            <span className="text-gray text-sm">{p.hand_count ?? 0} cartas restantes</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Acciones */}
-      <button
-        onClick={onRematch}
-        className="w-full bg-uno-green text-white font-bold py-4 rounded-xl mb-3 hover:brightness-110 active:scale-95 transition-all"
-      >
-        ¡Revancha!
-      </button>
-      <button
-        onClick={onLobby}
-        className="w-full bg-surface text-white font-bold py-3 rounded-xl hover:bg-surface2 transition-colors border border-border"
-      >
-        Ir al lobby
-      </button>
+  return <main className="nexo-results-screen"><section className="nexo-results-card">
+    <div className="table-brand"><strong>NEXO</strong><span>Fin de partida</span></div>
+    <div className="winner-emblem" aria-hidden="true">◇<span>✦</span></div>
+    <p className="multiplayer-eyebrow">{iWon ? 'LA MESA ES TUYA' : 'UNA GRAN PARTIDA'}</p>
+    <h1>{iWon ? '¡Ganaste!' : `¡Ganó ${winner?.name ?? 'el ganador'}!`}</h1>
+    <p className="results-subtitle">{iWon ? 'Sin cartas. Con todo el mérito.' : 'El próximo cambio de rumbo puede ser tuyo.'}</p>
+    <div className="results-list"><div className="results-list-heading"><strong>Así quedó la mesa</strong><span>Cartas restantes</span></div>
+      {sorted.map((player, index) => <div key={player.id} className={`result-row ${player.id === winnerId ? 'result-winner' : ''}`}>
+        <span className="result-rank">{player.id === winnerId ? '✦' : index + 1}</span>
+        <strong>{player.name}{player.id === session.playerId && <small> Tú</small>}</strong>
+        <span className="result-count">{player.hand_count ?? 0}</span>
+      </div>)}
     </div>
-  )
+    <button onClick={onRematch} className="nexo-primary-button">Otra ronda ↻</button>
+    <button onClick={onLobby} className="nexo-secondary-button">Volver al inicio</button>
+  </section></main>
 }

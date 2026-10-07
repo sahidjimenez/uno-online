@@ -1,11 +1,9 @@
-import { OFFLINE_MODE } from '../lib/offline'
-import { useOfflineGame } from './useOfflineGame'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { fetchGameState, fetchPlayers, sendHeartbeat } from '../services/room.service'
 import type { GameState, Player, Card, GameEvent, LocalSession } from '../types'
 
-function useOnlineGame(session: LocalSession | null) {
+export function useOnlineGame(session: LocalSession | null) {
   const [gameState,  setGameState]  = useState<GameState  | null>(null)
   const [players,    setPlayers]    = useState<Player[]>([])
   const [myHand,     setMyHand]     = useState<Card[]>([])
@@ -99,5 +97,3 @@ function useOnlineGame(session: LocalSession | null) {
 
   return { gameState, players, myHand, lastEvent, loading, isMyTurn, loadMyHand, localPlay: undefined, localDraw: undefined, localUno: undefined, localCatch: undefined }
 }
-
-export const useGame = OFFLINE_MODE ? useOfflineGame : useOnlineGame

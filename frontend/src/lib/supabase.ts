@@ -20,6 +20,7 @@ export const supabase = createClient(url || 'http://127.0.0.1:54321', key || 'of
 export async function ensureAnonSession() {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) {
-    await supabase.auth.signInAnonymously()
+    const { error } = await supabase.auth.signInAnonymously()
+    if (error) throw error
   }
 }

@@ -1,3 +1,4 @@
+import { StatusScreen } from './StatusScreen'
 import { Component, type ReactNode } from 'react'
 
 interface Props {
@@ -26,17 +27,10 @@ export class ErrorBoundary extends Component<Props, State> {
     if (!this.state.hasError) return this.props.children
 
     return (
-      <div className="min-h-screen bg-bg flex flex-col items-center justify-center gap-6 px-8 text-center">
-        <div className="text-4xl">⚠️</div>
-        <p className="text-white font-bold text-lg">Algo salió mal</p>
-        <p className="text-gray text-sm">{this.state.message}</p>
-        <button
-          onClick={this.reset}
-          className="bg-uno-red text-white font-bold px-6 py-3 rounded-xl"
-        >
-          Volver al inicio
-        </button>
-      </div>
+      <StatusScreen title="La mesa tuvo un imprevisto" description="Vuelve al inicio para preparar otra partida.">
+        <button onClick={this.reset} className="nexo-primary-button">Volver al inicio</button>
+        <details className="status-details"><summary>Ver detalles</summary><p>{this.state.message}</p></details>
+      </StatusScreen>
     )
   }
 }

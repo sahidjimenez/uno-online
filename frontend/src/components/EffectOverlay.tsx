@@ -1,51 +1,18 @@
+import type { CSSProperties } from 'react'
 import type { CardColor } from '../types'
-
 interface Props {
-  type:      'skip' | 'reverse'
+  type: 'skip' | 'reverse' | 'draw_stack' | 'draw_resolved'
   byPlayer?: string
-  color?:    CardColor
+  color?: CardColor
+  stack?: number
 }
-
-const COLOR_BG: Record<CardColor, string> = {
-  red:    'bg-uno-red',
-  blue:   'bg-uno-blue',
-  green:  'bg-uno-green',
-  yellow: 'bg-uno-yellow',
-  wild:   'bg-purple-600',
-}
-
-// Overlay informativo de solo animación — se cierra automáticamente
-export function EffectOverlay({ type, byPlayer, color }: Props) {
-  return (
-    <div className="fixed inset-0 flex items-center justify-center z-40 pointer-events-none">
-      <div className="flex flex-col items-center gap-3 animate-bounce-in">
-
-        {/* Icono grande */}
-        <div className={`
-          ${color ? COLOR_BG[color] : 'bg-surface2'}
-          w-24 h-32 rounded-2xl flex items-center justify-center
-          shadow-[0_10px_40px_rgba(0,0,0,0.6)]
-        `}>
-          <span className="text-white text-5xl font-black select-none">
-            {type === 'skip'    && '⊘'}
-            {type === 'reverse' && '⇄'}
-          </span>
-        </div>
-
-        {/* Banner informativo */}
-        <div className="bg-black/70 rounded-2xl px-5 py-3 text-center animate-slide-up">
-          {type === 'skip' && (
-            <p className="text-white text-base font-bold">
-              {byPlayer ? `${byPlayer} pierde su turno` : '¡Turno saltado!'}
-            </p>
-          )}
-          {type === 'reverse' && (
-            <p className="text-white text-base font-bold">
-              {byPlayer ? `${byPlayer} invirtió el juego` : '¡Dirección invertida!'}
-            </p>
-          )}
-        </div>
-      </div>
+export function EffectOverlay({ type, byPlayer, color, stack = 0 }: Props) {
+  const title = type === 'reverse' ? '¡Cambio de rumbo!' : type === 'draw_stack' ? '¡La presión aumenta!' : type === 'draw_resolved' ? '¡A robar cartas!' : '¡Turno saltado!'
+  return <div className={`table-effect effect-${type}`} role="status">
+    <div className="effect-symbol" style={{ '--effect-color': color ? `var(--card-${color})` : '#a9e6d6' } as CSSProperties}>
+      {type === 'reverse' ? '⇄' : type === 'skip' ? '⊘' : `+${stack}`}
+      {(type === 'draw_stack' || type === 'draw_resolved') && <div className="effect-mini-cards" aria-hidden="true"><i /><i /><i /></div>}
     </div>
-  )
+    <div className="effect-caption"><strong>{title}</strong><span>{type === 'reverse' ? 'El juego cambia de dirección' : type === 'draw_stack' ? `${stack} cartas acumuladas · apila o roba` : type === 'draw_resolved' ? `${stack} cartas de penalización` : 'El siguiente jugador pierde su turno'}{byPlayer && ` · ${byPlayer}`}</span></div>
+  </div>
 }

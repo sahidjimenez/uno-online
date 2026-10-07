@@ -1,5 +1,11 @@
-import { useState, useMemo, useEffect, type CSSProperties } from 'react'
-import { useGame } from '../hooks/useGame'
+import { StatusScreen } from '../components/StatusScreen'
+import { VoiceNotes } from '../components/VoiceNotes'
+import { useEffectSounds } from '../hooks/useEffectSounds'
+import { ReactionBar } from '../components/ReactionBar'
+import { detectTableEffect } from '../engine/tableEffects'
+import { useState, useMemo, useEffect, useRef, type CSSProperties } from 'react'
+import { useOnlineGame } from '../hooks/useGame'
+import { useOfflineGame } from '../hooks/useOfflineGame'
 import { UnoCard } from '../components/UnoCard'
 import { OpponentPanel } from '../components/OpponentPanel'
 import { ColorPicker } from '../components/ColorPicker'
@@ -9,14 +15,28 @@ import { supabase } from '../lib/supabase'
 import type { LocalSession, Card, CardColor, Player } from '../types'
 
 interface Props {
+  local?: boolean
   session:  LocalSession
   onFinish: (winnerId: string, players: Player[]) => void
 }
 
-export function Board({ session, onFinish }: Props) {
-  const { gameState, players, myHand, lastEvent, loading, isMyTurn, localPlay, localDraw, localUno, localCatch } = useGame(session)
+export function Board(props: Props) {
+  return props.local ? <LocalBoard {...props} /> : <OnlineBoard {...props} />
+}
+function LocalBoard(props: Props) {
+  const game = useOfflineGame(props.session)
+  return <BoardView {...props} game={game} />
+}
+function OnlineBoard(props: Props) {
+  const game = useOnlineGame(props.session)
+  return <BoardView {...props} game={game} />
+}
+function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeof useOfflineGame> | ReturnType<typeof useOnlineGame> }) {
+  const { gameState, players, myHand, lastEvent, loading, isMyTurn, localPlay, localDraw, localUno, localCatch } = game
   const [pendingWild,      setPendingWild]      = useState<Card | null>(null)
-  const [dismissedEventId, setDismissedEventId] = useState<string | null>(null)
+  const [tableEffect, setTableEffect] = useState<(NonNullable<ReturnType<typeof detectTableEffect>> & { id: string }) | null>(null)
+  const { soundEnabled, toggleSound } = useEffectSounds(tableEffect)
+  const previousState = useRef(gameState)
   const [prevHandIds,      setPrevHandIds]       = useState<Set<string>>(new Set())
   const [winBlockMsg,      setWinBlockMsg]       = useState<string | null>(null)
 
@@ -38,22 +58,18 @@ export function Board({ session, onFinish }: Props) {
   )
   const me = players.find(p => p.id === session.playerId)
 
-  // Overlay solo para skip y reverse — solo animación informativa, se cierra solo
-  const activeEffect = useMemo(() => {
-    if (!lastEvent) return null
-    if (lastEvent.id === dismissedEventId) return null
-    if (lastEvent.type === 'skip_applied')    return 'skip'    as const
-    if (lastEvent.type === 'reverse_applied') return 'reverse' as const
-    return null
-  }, [lastEvent, dismissedEventId])
-
-  // Auto-dismiss skip/reverse tras 1.5s
   useEffect(() => {
-    if (activeEffect === 'skip' || activeEffect === 'reverse') {
-      const t = setTimeout(() => setDismissedEventId(lastEvent?.id ?? null), 1500)
-      return () => clearTimeout(t)
+    if (gameState && previousState.current) {
+      const effect = detectTableEffect(previousState.current, gameState)
+      if (effect) setTableEffect({ ...effect, id: `${gameState.room_id}-${gameState.version}` })
     }
-  }, [activeEffect, lastEvent?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+    previousState.current = gameState
+  }, [gameState])
+  useEffect(() => {
+    if (!tableEffect) return
+    const timer = setTimeout(() => setTableEffect(null), 1900)
+    return () => clearTimeout(timer)
+  }, [tableEffect])
 
   async function playCard(card: Card, chosenColor?: CardColor) {
     if (!isMyTurn || !gameState) return
@@ -117,9 +133,7 @@ export function Board({ session, onFinish }: Props) {
 
   if (loading || !gameState) {
     return (
-      <div className="min-h-screen bg-bg flex items-center justify-center">
-        <p className="text-gray">Cargando partida…</p>
-      </div>
+      <StatusScreen loading title="Preparando la mesa" description="Estamos repartiendo las cartas…" />
     )
   }
 
@@ -127,11 +141,14 @@ export function Board({ session, onFinish }: Props) {
   const colorNames = { red: 'Rojo', blue: 'Azul', green: 'Verde', yellow: 'Amarillo', wild: 'Comodín' }
 
   return (
-    <div className="game-room">
+    <div className={`game-room ${tableEffect?.type === 'reverse' ? 'table-reversing' : ''}`}>
       <header className="table-header">
         <div className="table-brand"><strong>NEXO</strong><span>Mesa 3D</span></div>
         <div className="table-room-code">{localPlay ? 'MODO LOCAL' : 'SALA'} <strong>{localPlay ? 'CONTRA BOTS' : session.roomCode}</strong></div>
-        <span className="table-view-label">◉ Vista de mesa</span>
+        <button onClick={toggleSound} className="table-view-label sound-toggle" aria-pressed={soundEnabled}
+          aria-label={soundEnabled ? 'Silenciar efectos de sonido' : 'Activar efectos de sonido'}>
+          <span aria-hidden="true">{soundEnabled ? '🔊' : '🔇'}</span> {soundEnabled ? 'Sonido activo' : 'Sin sonido'}
+        </button>
       </header>
 
       <main className="table-stage" aria-label="Mesa de juego NEXO">
@@ -177,7 +194,7 @@ export function Board({ session, onFinish }: Props) {
               <span className="pile-caption color-caption"><i style={{ background: `var(--card-${gameState.current_color})` }} />{colorNames[gameState.current_color ?? 'wild']}</span>
             </div>
           </div>
-          {gameState.draw_stack > 0 && <div className="draw-stack-notice">+{gameState.draw_stack} acumulado{isMyTurn && ' · ¡te toca!'}</div>}
+          {gameState.draw_stack > 0 && <div key={gameState.draw_stack} className="draw-stack-notice">+{gameState.draw_stack} acumulado{isMyTurn && ' · ¡te toca!'}</div>}
         </div>
 
         <button onClick={callUno} disabled={myHand.length !== 1} className="table-uno-button">¡ÚLTIMA!<span>¡Cántalo con una carta!</span></button>
@@ -206,6 +223,9 @@ export function Board({ session, onFinish }: Props) {
         </section>
       </main>
 
+      <ReactionBar session={session} players={players} local={!!localPlay} />
+      <VoiceNotes session={session} players={players} local={!!localPlay} />
+
       {/* Aviso de victoria bloqueada */}
       {winBlockMsg && (
         <div className="fixed top-16 left-0 right-0 flex justify-center z-50 pointer-events-none">
@@ -224,9 +244,11 @@ export function Board({ session, onFinish }: Props) {
       )}
 
       {/* Overlay informativo — solo animación, no bloquea interacción */}
-      {activeEffect && (
+      {tableEffect && (
         <EffectOverlay
-          type={activeEffect}
+          key={tableEffect.id}
+          type={tableEffect.type}
+          stack={tableEffect.stack}
           byPlayer={players.find(p => p.id === lastEvent?.player_id)?.name}
           color={gameState.top_card_color ?? undefined}
         />
