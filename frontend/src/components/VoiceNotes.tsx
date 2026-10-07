@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { isVoicePacket, MAX_VOICE_BYTES, VOICE_COOLDOWN, VOICE_TTL, type VoicePacket } from '../lib/voiceNotes'
+import { isVoicePacket, normalizeVoiceMime, MAX_VOICE_BYTES, VOICE_COOLDOWN, VOICE_TTL, type VoicePacket } from '../lib/voiceNotes'
 import type { LocalSession, Player } from '../types'
 export interface Note extends VoicePacket { url: string }
 interface Draft { blob: Blob; url: string; duration: number }
@@ -36,7 +36,8 @@ export function VoiceNotes({ session, players, local, onNote }: { session: Local
   function stop(cancel = false) {
     cancelled.current = cancel
     if (recorder.current?.state === 'recording') { setFinishing(true); recorder.current.stop() }
-    stopTracks()
+    else stopTracks()
+    if (cancel) stopTracks()
     setRecording(false)
     if (cancel && draft) { release(draft.url); setDraft(null) }
   }
@@ -49,7 +50,7 @@ export function VoiceNotes({ session, players, local, onNote }: { session: Local
     try {
       const bytes = Uint8Array.from(atob(packet.audio), char => char.charCodeAt(0))
       if (bytes.length > MAX_VOICE_BYTES) return
-      const url = makeUrl(new Blob([bytes], { type: packet.mime }))
+      const url = makeUrl(new Blob([bytes], { type: normalizeVoiceMime(packet.mime)! }))
       onNoteRef.current({ ...packet, url })
       setNotes(current => {
         const kept = current.filter(note => note.playerId !== packet.playerId)
@@ -140,7 +141,9 @@ export function VoiceNotes({ session, players, local, onNote }: { session: Local
         stopTracks()
         if (!mounted.current || cancelled.current) return
         const duration = Math.min(10, (Date.now() - started.current) / 1000)
-        const blob = new Blob(chunks, { type: rec.mimeType })
+        const actualMime = normalizeVoiceMime(rec.mimeType) ?? normalizeVoiceMime(chunks[0]?.type) ?? normalizeVoiceMime(mime)
+        if (!actualMime) { setError('El formato de audio de este navegador no es compatible.'); setRecording(false); return }
+        const blob = new Blob(chunks, { type: actualMime })
         if (!blob.size || duration < .3) { setError('Graba un mensaje un poco más largo.'); return }
         setDraft({ blob, duration, url: makeUrl(blob) })
         setRecording(false)
@@ -157,6 +160,7 @@ export function VoiceNotes({ session, players, local, onNote }: { session: Local
       const bytes = new Uint8Array(await draft.blob.arrayBuffer())
       let binary = ''; bytes.forEach(byte => { binary += String.fromCharCode(byte) })
       const packet: VoicePacket = { id: crypto.randomUUID(), playerId: session.playerId, audio: btoa(binary), mime: draft.blob.type, duration: draft.duration, expiresAt: Date.now() + VOICE_TTL }
+      if (!isVoicePacket(packet, members.current)) throw new Error('El formato o tamaño de la grabación no es válido. Prueba una nota más corta.')
       if (!local) {
         if (!channel.current) throw new Error('Sin conexión')
         const result = await channel.current.send({ type: 'broadcast', event: 'voice-note', payload: packet })
@@ -166,7 +170,7 @@ export function VoiceNotes({ session, players, local, onNote }: { session: Local
       receive(packet)
       lastSent.current = Date.now(); setCooldown(true)
       release(draft.url); setDraft(null); setSent(true)
-    } catch { if (mounted.current) setError('No se pudo enviar. Tu grabación sigue disponible para reintentar.') }
+    } catch (cause) { if (mounted.current) setError(cause instanceof Error && cause.message.startsWith('El formato') ? cause.message : 'No se pudo enviar. Tu grabación sigue disponible para reintentar.') }
     finally { if (mounted.current) setSending(false) }
   }
   return <aside className="voice-notes">

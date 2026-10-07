@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { isVoicePacket, MAX_VOICE_BYTES, VOICE_TTL } from './voiceNotes'
+import { isVoicePacket, normalizeVoiceMime, MAX_VOICE_BYTES, VOICE_TTL } from './voiceNotes'
 const now = 100000
 const packet = { id: 'clip-1', playerId: 'me', audio: 'YWJj', mime: 'audio/webm;codecs=opus', duration: 5, expiresAt: now + VOICE_TTL }
 describe('temporary voice packets', () => {
+  it.each(['audio/mp4; codecs="mp4a.40.2"', 'audio/mp4;codecs=mp4a.40.2', 'audio/webm; codecs="opus"', ' AUDIO/MP4 '])('accepts browser codec formatting: %s', mime => {
+    expect(isVoicePacket({ ...packet, mime }, ['me'], now)).toBe(true)
+    expect(normalizeVoiceMime(mime)).not.toBeNull()
+  })
+  it('normalizes quoted iPhone AAC codecs without changing the encoding', () => {
+    expect(normalizeVoiceMime('audio/mp4; codecs="mp4a.40.2"')).toBe('audio/mp4;codecs=mp4a.40.2')
+  })
   it('accepts a short clip from a member of the table', () => { expect(isVoicePacket(packet, ['me'], now)).toBe(true) })
   it('rejects players outside the table', () => { expect(isVoicePacket(packet, ['other'], now)).toBe(false) })
   it.each([0, -1, 11, NaN])('rejects invalid durations: %s', duration => { expect(isVoicePacket({ ...packet, duration }, ['me'], now)).toBe(false) })
