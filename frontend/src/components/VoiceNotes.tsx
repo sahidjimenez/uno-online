@@ -2,9 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { isVoicePacket, MAX_VOICE_BYTES, VOICE_COOLDOWN, VOICE_TTL, type VoicePacket } from '../lib/voiceNotes'
 import type { LocalSession, Player } from '../types'
-interface Note extends VoicePacket { url: string }
+export interface Note extends VoicePacket { url: string }
 interface Draft { blob: Blob; url: string; duration: number }
-export function VoiceNotes({ session, players, local }: { session: LocalSession; players: Player[]; local: boolean }) {
+export function VoiceNotes({ session, players, local, onNote }: { session: LocalSession; players: Player[]; local: boolean; onNote: (note: Note) => void }) {
+  const onNoteRef = useRef(onNote)
+  onNoteRef.current = onNote
+  const [sent, setSent] = useState(false)
   const [open, setOpen] = useState(false)
   const [recording, setRecording] = useState(false)
   const [finishing, setFinishing] = useState(false)
@@ -47,6 +50,7 @@ export function VoiceNotes({ session, players, local }: { session: LocalSession;
       const bytes = Uint8Array.from(atob(packet.audio), char => char.charCodeAt(0))
       if (bytes.length > MAX_VOICE_BYTES) return
       const url = makeUrl(new Blob([bytes], { type: packet.mime }))
+      onNoteRef.current({ ...packet, url })
       setNotes(current => {
         const kept = current.filter(note => note.playerId !== packet.playerId)
         current.filter(note => note.playerId === packet.playerId).forEach(note => release(note.url))
@@ -148,7 +152,7 @@ export function VoiceNotes({ session, players, local }: { session: LocalSession;
   }
   async function send() {
     if (!draft || sending || !ready || Date.now() - lastSent.current < VOICE_COOLDOWN) return
-    setSending(true); setError('')
+    setSending(true); setError(''); setSent(false)
     try {
       const bytes = new Uint8Array(await draft.blob.arrayBuffer())
       let binary = ''; bytes.forEach(byte => { binary += String.fromCharCode(byte) })
@@ -161,7 +165,7 @@ export function VoiceNotes({ session, players, local }: { session: LocalSession;
       if (!mounted.current) return
       receive(packet)
       lastSent.current = Date.now(); setCooldown(true)
-      release(draft.url); setDraft(null)
+      release(draft.url); setDraft(null); setSent(true)
     } catch { if (mounted.current) setError('No se pudo enviar. Tu grabación sigue disponible para reintentar.') }
     finally { if (mounted.current) setSending(false) }
   }
@@ -173,22 +177,28 @@ export function VoiceNotes({ session, players, local }: { session: LocalSession;
       {recording ? <><div className="voice-recording" role="status">● Grabando · {seconds.toFixed(1)} / 10 s</div><button onClick={() => stop()}>Detener</button><button onClick={() => stop(true)}>Cancelar</button></> : draft ? <><ClipAudio url={draft.url} label="Escuchar mi grabación" /><div className="voice-actions"><button disabled={sending || !ready || cooldown} onClick={() => void send()}>{sending ? 'Enviando…' : 'Enviar'}</button><button disabled={sending} onClick={() => stop(true)}>Descartar</button></div></> : <button disabled={requesting || finishing || !ready || cooldown} onClick={() => void record()}>{requesting ? 'Esperando permiso…' : finishing ? 'Preparando audio…' : cooldown ? 'Espera unos segundos…' : 'Grabar mensaje'}</button>}
       {requesting && <button onClick={() => { cancelled.current = true }}>Cancelar solicitud</button>}
       {!ready && <p role="status">Conectando con las notas de la mesa…</p>}
+      {sent && <p role="status">✓ Nota enviada a las reacciones de la mesa</p>}
       {error && <p className="voice-error" role="alert">{error}</p>}
     </div>}
-    <div className="voice-messages" aria-live="polite">{notes.map(note => <VoiceMessage key={note.id} note={note} name={players.find(p => p.id === note.playerId)?.name ?? 'Jugador'} />)}</div>
+
   </aside>
 }
-function VoiceMessage({ note, name }: { note: Note; name: string }) {
+export function VoiceMessage({ note, name }: { note: Note; name: string }) {
   const [remaining, setRemaining] = useState(Math.ceil((note.expiresAt - Date.now()) / 1000))
   useEffect(() => { const timer = setInterval(() => setRemaining(Math.max(0, Math.ceil((note.expiresAt - Date.now()) / 1000))), 1000); return () => clearInterval(timer) }, [note.expiresAt])
-  return <div className="voice-message"><div><strong>🎙 {name}</strong><span>{remaining} s restantes</span></div><ClipAudio url={note.url} label={`Nota de voz de ${name}`} /></div>
+  return <div className="voice-message"><div><strong>🎙 {name}</strong><span>{remaining} s restantes</span></div><ClipAudio autoplay url={note.url} label={`Nota de voz de ${name}`} /></div>
 }
 
-function ClipAudio({ url, label }: { url: string; label: string }) {
+function ClipAudio({ url, label, autoplay = false }: { url: string; label: string; autoplay?: boolean }) {
+  const [blocked, setBlocked] = useState(false)
   const audio = useRef<HTMLAudioElement>(null)
   useEffect(() => {
     const element = audio.current
-    return () => { if (element) { element.pause(); element.removeAttribute('src'); element.load() } }
-  }, [url])
-  return <audio ref={audio} controls src={url} preload="none" aria-label={label} />
+    let active = true
+    if (autoplay && element) void element.play().catch(() => { if (active) setBlocked(true) })
+    return () => { active = false; if (element) { element.pause(); element.removeAttribute('src'); element.load() } }
+  }, [url, autoplay])
+  return <><audio ref={audio} controls src={url} preload={autoplay ? 'auto' : 'none'} aria-label={label} onPlay={() => setBlocked(false)} />
+    {blocked && <p className="voice-autoplay-hint">Pulsa ▶ para escuchar; el navegador bloqueó la reproducción automática.</p>}</>
+
 }

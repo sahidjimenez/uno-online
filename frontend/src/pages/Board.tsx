@@ -1,7 +1,6 @@
 import { StatusScreen } from '../components/StatusScreen'
-import { VoiceNotes } from '../components/VoiceNotes'
+import { TableMessages } from '../components/TableMessages'
 import { useEffectSounds } from '../hooks/useEffectSounds'
-import { ReactionBar } from '../components/ReactionBar'
 import { detectTableEffect } from '../engine/tableEffects'
 import { useState, useMemo, useEffect, useRef, type CSSProperties } from 'react'
 import { useOnlineGame } from '../hooks/useGame'
@@ -223,8 +222,7 @@ function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeo
         </section>
       </main>
 
-      <ReactionBar session={session} players={players} local={!!localPlay} />
-      <VoiceNotes session={session} players={players} local={!!localPlay} />
+      <TableMessages session={session} players={players} local={!!localPlay} />
 
       {/* Aviso de victoria bloqueada */}
       {winBlockMsg && (
