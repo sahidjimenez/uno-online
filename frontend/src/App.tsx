@@ -1,3 +1,5 @@
+import { OFFLINE_MODE } from './lib/offline'
+import { OfflineApp } from './OfflineApp'
 import { useState, useEffect } from 'react'
 import { ensureAnonSession } from './lib/supabase'
 import { loadSession, clearSession, reconnect, fetchGameState } from './services/room.service'
@@ -10,7 +12,7 @@ import type { LocalSession, Player } from './types'
 
 type Screen = 'home' | 'lobby' | 'board' | 'gameover'
 
-export default function App() {
+function OnlineApp() {
   const [screen,   setScreen]   = useState<Screen>('home')
   const [session,  setSession]  = useState<LocalSession | null>(null)
   const [winner,   setWinner]   = useState<string | null>(null)
@@ -97,3 +99,5 @@ export default function App() {
     </>
   )
 }
+
+export default function App() { return OFFLINE_MODE ? <OfflineApp /> : <OnlineApp /> }

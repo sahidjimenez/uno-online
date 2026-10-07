@@ -8,9 +8,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'UNO Online',
-        short_name: 'UNO',
-        description: 'Juego de cartas UNO multijugador en tiempo real',
+        name: 'NEXO',
+        short_name: 'NEXO',
+        description: 'Juego de cartas NEXO multijugador en tiempo real',
         theme_color: '#0F1923',
         background_color: '#0F1923',
         display: 'standalone',

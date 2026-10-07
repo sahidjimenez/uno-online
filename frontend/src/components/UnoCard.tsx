@@ -47,18 +47,20 @@ export function UnoCard({ color, type, faceDown, size = 'md', selected, playable
 
   if (faceDown) {
     return (
-      <div className={`${s.card} bg-surface2 border border-border flex items-center justify-center shrink-0`}>
-        <div className="w-[70%] h-[80%] bg-border/40 rounded" />
+      <div className={`${s.card} uno-card card-back`}>
+        <span className="card-back-mark" aria-hidden="true">◇</span><span className="card-back-logo">NEXO</span>
       </div>
     )
   }
 
   return (
     <button
+      aria-label={`${color} ${label}`}
       onClick={onClick}
       disabled={!onClick}
       className={[
         s.card,
+        `uno-card card-${color}`,
         COLOR_BG[color],
         'relative flex items-center justify-center shrink-0 overflow-hidden transition-all duration-200',
         selected  ? '-translate-y-3 ring-2 ring-white' : '',
@@ -68,8 +70,10 @@ export function UnoCard({ color, type, faceDown, size = 'md', selected, playable
         animate === 'play' ? 'animate-card-play' : '',
       ].join(' ')}
     >
-      {/* Oval decorativo */}
-      <div className={`${s.oval} absolute rounded-full bg-white/15 -rotate-[30deg]`} />
+      <div className="card-geometry" aria-hidden="true" />
+      <span className="card-corner corner-top">{label}</span>
+      <span className="card-corner corner-bottom">{label}</span>
+      <span className="card-suit" aria-hidden="true">{{ red: '◆', blue: '●', green: '▲', yellow: '✦', wild: '◇' }[color]}</span>
       {/* Label */}
       <span className={`${s.text} font-black text-white relative z-10 drop-shadow`}>
         {label}

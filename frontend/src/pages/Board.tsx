@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, type CSSProperties } from 'react'
 import { useGame } from '../hooks/useGame'
 import { UnoCard } from '../components/UnoCard'
 import { OpponentPanel } from '../components/OpponentPanel'
@@ -14,7 +14,7 @@ interface Props {
 }
 
 export function Board({ session, onFinish }: Props) {
-  const { gameState, players, myHand, lastEvent, loading, isMyTurn } = useGame(session)
+  const { gameState, players, myHand, lastEvent, loading, isMyTurn, localPlay, localDraw, localUno, localCatch } = useGame(session)
   const [pendingWild,      setPendingWild]      = useState<Card | null>(null)
   const [dismissedEventId, setDismissedEventId] = useState<string | null>(null)
   const [prevHandIds,      setPrevHandIds]       = useState<Set<string>>(new Set())
@@ -71,6 +71,7 @@ export function Board({ session, onFinish }: Props) {
       return
     }
 
+    if (localPlay) { localPlay(card, chosenColor); return }
     await supabase.functions.invoke('play-card', {
       body: {
         room_id:      session.roomId,
@@ -84,6 +85,7 @@ export function Board({ session, onFinish }: Props) {
 
   async function drawCard() {
     if (!isMyTurn || !gameState) return
+    if (localDraw) { localDraw(); return }
     await supabase.functions.invoke('draw-card', {
       body: {
         room_id:   session.roomId,
@@ -94,12 +96,14 @@ export function Board({ session, onFinish }: Props) {
   }
 
   async function callUno() {
+    if (localUno) { localUno(); return }
     await supabase.functions.invoke('call-uno', {
       body: { room_id: session.roomId, player_id: session.playerId },
     })
   }
 
   async function catchUno(accusedId: string) {
+    if (localCatch) { localCatch(accusedId); return }
     await supabase.functions.invoke('penalize-uno', {
       body: { room_id: session.roomId, accuser_id: session.playerId, accused_id: accusedId },
     })
@@ -119,177 +123,88 @@ export function Board({ session, onFinish }: Props) {
     )
   }
 
-  const playerCount = players.length
-  const compact = playerCount >= 7
-
-  // Layout de oponentes según número de jugadores
-  function renderOpponents() {
-    if (playerCount === 2) {
-      return (
-        <div className="flex justify-center px-4">
-          <OpponentPanel player={opponents[0]} cardCount={opponents[0]?.hand_count ?? 0}
-            isActive={gameState!.current_player_id === opponents[0]?.id}
-            onCatch={() => catchUno(opponents[0].id)} />
-        </div>
-      )
-    }
-    if (playerCount === 3) {
-      return (
-        <div className="flex justify-between px-2">
-          <OpponentPanel player={opponents[0]} cardCount={opponents[0]?.hand_count ?? 0}
-            isActive={gameState!.current_player_id === opponents[0]?.id} direction="v"
-            onCatch={() => catchUno(opponents[0].id)} />
-          <OpponentPanel player={opponents[1]} cardCount={opponents[1]?.hand_count ?? 0}
-            isActive={gameState!.current_player_id === opponents[1]?.id} direction="v"
-            onCatch={() => catchUno(opponents[1].id)} />
-        </div>
-      )
-    }
-    if (playerCount === 4) {
-      const top = opponents[1]
-      const left = opponents[0]
-      const right = opponents[2]
-      return (
-        <>
-          <div className="flex justify-center mb-2 px-4">
-            <OpponentPanel player={top} cardCount={top?.hand_count ?? 0}
-              isActive={gameState!.current_player_id === top?.id}
-              onCatch={() => catchUno(top.id)} />
-          </div>
-          <div className="flex justify-between px-2">
-            <OpponentPanel player={left} cardCount={left?.hand_count ?? 0}
-              isActive={gameState!.current_player_id === left?.id} direction="v"
-              onCatch={() => catchUno(left.id)} />
-            <OpponentPanel player={right} cardCount={right?.hand_count ?? 0}
-              isActive={gameState!.current_player_id === right?.id} direction="v"
-              onCatch={() => catchUno(right.id)} />
-          </div>
-        </>
-      )
-    }
-    // 5-8 jugadores: fila top + lados
-    const topRow = opponents.slice(0, playerCount <= 6 ? playerCount - 3 : 3)
-    const left   = opponents.slice(topRow.length, topRow.length + (compact ? 2 : 1))
-    const right  = opponents.slice(topRow.length + left.length)
-    return (
-      <>
-        <div className={`grid grid-cols-${topRow.length} gap-1 px-2 mb-2`}>
-          {topRow.map(p => (
-            <OpponentPanel key={p.id} player={p} cardCount={p.hand_count ?? 0}
-              isActive={gameState!.current_player_id === p.id} compact={compact}
-              onCatch={() => catchUno(p.id)} />
-          ))}
-        </div>
-        <div className="flex justify-between px-1">
-          <div className="flex flex-col gap-1">
-            {left.map(p => (
-              <OpponentPanel key={p.id} player={p} cardCount={p.hand_count ?? 0}
-                isActive={gameState!.current_player_id === p.id} direction="v" compact={compact}
-                onCatch={() => catchUno(p.id)} />
-            ))}
-          </div>
-          <div className="flex flex-col gap-1">
-            {right.map(p => (
-              <OpponentPanel key={p.id} player={p} cardCount={p.hand_count ?? 0}
-                isActive={gameState!.current_player_id === p.id} direction="v" compact={compact}
-                onCatch={() => catchUno(p.id)} />
-            ))}
-          </div>
-        </div>
-      </>
-    )
-  }
+  const currentPlayer = players.find(p => p.id === gameState.current_player_id)
+  const colorNames = { red: 'Rojo', blue: 'Azul', green: 'Verde', yellow: 'Amarillo', wild: 'Comodín' }
 
   return (
-    <div className="min-h-screen bg-table flex flex-col">
+    <div className="game-room">
+      <header className="table-header">
+        <div className="table-brand"><strong>NEXO</strong><span>Mesa 3D</span></div>
+        <div className="table-room-code">{localPlay ? 'MODO LOCAL' : 'SALA'} <strong>{localPlay ? 'CONTRA BOTS' : session.roomCode}</strong></div>
+        <span className="table-view-label">◉ Vista de mesa</span>
+      </header>
 
-      {/* Status bar */}
-      <div className="bg-bg flex items-center justify-between px-4 h-12 shrink-0">
-        <span className="text-gray text-sm">UNO Online</span>
-        <span className="text-white text-xs font-bold">
-          {isMyTurn ? '→ Tu turno' : `Turno de ${players.find(p => p.id === gameState.current_player_id)?.name ?? '…'}`}
-        </span>
-        <span className="text-gray text-xs">{gameState.draw_pile_count} ✦</span>
-      </div>
+      <main className="table-stage" aria-label="Mesa de juego NEXO">
+        <div className="walnut-table" aria-hidden="true"><div className="table-grain" /></div>
+        <div className={`opponent-seats ${opponents.length > 4 ? 'many-seats' : ''}`}>
+          {opponents.map((player, index) => {
+            const angle = opponents.length === 1 ? -90 : -165 + index * (150 / (opponents.length - 1))
+            const radians = angle * Math.PI / 180
+            return (
+              <div key={player.id} className="opponent-seat" style={{
+                left: `${50 + Math.cos(radians) * 40}%`,
+                top: `${36 + Math.sin(radians) * 27}%`,
+              }}>
+                <OpponentPanel player={player} cardCount={player.hand_count ?? 0}
+                  isActive={gameState.current_player_id === player.id} compact={opponents.length > 4}
+                  onCatch={() => catchUno(player.id)} />
+                <div className="opponent-hand" aria-hidden="true">
+                  {Array.from({ length: Math.min(player.hand_count ?? 0, 7) }).map((_, i) => (
+                    <div key={i} style={{ transform: `rotate(${(i - Math.min(player.hand_count ?? 0, 7) / 2) * 5}deg)` }}>
+                      <UnoCard color="wild" type="wild" faceDown size="sm" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
 
-      {/* Oponentes */}
-      <div className="flex flex-col px-2 pt-3 gap-2">
-        {renderOpponents()}
-      </div>
-
-      {/* Mesa central */}
-      <div className="flex-1 flex items-center justify-center gap-8">
-
-        {/* Mazo */}
-        <button onClick={drawCard} disabled={!isMyTurn} className="relative disabled:cursor-not-allowed">
-          <div className="w-16 h-24 bg-surface2 rounded-xl" />
-          <div className="absolute top-[-4px] left-[4px] w-16 h-24 bg-surface rounded-xl" />
-          <p className="text-gray text-[10px] text-center mt-1">Robar</p>
-        </button>
-
-        {/* Carta actual + indicador de color */}
-        <div className="flex flex-col items-center gap-2">
-          {gameState.top_card_color && gameState.top_card_type && (
-            <UnoCard
-              key={`${gameState.top_card_color}-${gameState.top_card_type}-${gameState.version}`}
-              color={gameState.top_card_color}
-              type={gameState.top_card_type}
-              size="lg"
-              animate={
-                ['skip','reverse','draw2','wild','wild4'].includes(gameState.top_card_type)
-                  ? 'play'
-                  : undefined
-              }
-            />
-          )}
-          {gameState.draw_stack > 0 && (
-            <div className={[
-              'animate-stack-pulse text-white text-sm font-black px-4 py-1.5 rounded-full',
-              isMyTurn ? 'bg-uno-red ring-2 ring-white scale-110' : 'bg-uno-red/70',
-            ].join(' ')}>
-              +{gameState.draw_stack} acumulado
-              {isMyTurn && ' — ¡te toca!'}
+        <div className="table-center">
+          <div className={`turn-orbit ${gameState.direction === -1 ? 'is-reversed' : ''}`} aria-label={gameState.direction === 1 ? 'Sentido horario' : 'Sentido antihorario'}>↻</div>
+          <div className="table-piles">
+            <div className="pile-column">
+              <button onClick={drawCard} disabled={!isMyTurn} className="draw-deck" aria-label="Robar carta">
+                <UnoCard color="wild" type="wild" faceDown size="lg" />
+              </button>
+              <span className="pile-caption">ROBAR · {gameState.draw_pile_count}</span>
             </div>
-          )}
-          <div className="flex items-center gap-1">
-            <div className={`w-3 h-3 rounded-full ${
-              gameState.current_color === 'red'    ? 'bg-uno-red'    :
-              gameState.current_color === 'blue'   ? 'bg-uno-blue'   :
-              gameState.current_color === 'green'  ? 'bg-uno-green'  :
-              gameState.current_color === 'yellow' ? 'bg-uno-yellow' : 'bg-gray'
-            }`} />
-            <span className="text-gray text-[10px] capitalize">{gameState.current_color}</span>
+            <div className="pile-column discard-pile">
+              {gameState.top_card_color && gameState.top_card_type && (
+                <UnoCard key={`${gameState.top_card_color}-${gameState.top_card_type}-${gameState.version}`}
+                  color={gameState.top_card_color} type={gameState.top_card_type} size="lg" />
+              )}
+              <span className="pile-caption color-caption"><i style={{ background: `var(--card-${gameState.current_color})` }} />{colorNames[gameState.current_color ?? 'wild']}</span>
+            </div>
           </div>
-        </div>
-      </div>
-
-      {/* Mano del jugador */}
-      <div className="bg-bg/95 pt-2 pb-4 px-4 shrink-0">
-        <p className="text-gray text-[10px] mb-2">Tu mano</p>
-        <div className="flex gap-2 overflow-x-auto pb-1 justify-center">
-          {myHand.map(card => (
-            <UnoCard
-              key={card.id}
-              color={card.card_color}
-              type={card.card_type}
-              size="md"
-              playable={isMyTurn && canPlay(card, gameState)}
-              animate={!prevHandIds.has(card.id) ? 'draw' : undefined}
-              onClick={isMyTurn ? () => playCard(card) : undefined}
-            />
-          ))}
+          {gameState.draw_stack > 0 && <div className="draw-stack-notice">+{gameState.draw_stack} acumulado{isMyTurn && ' · ¡te toca!'}</div>}
         </div>
 
-        {/* Botón UNO */}
-        {myHand.length === 1 && (
-          <button
-            onClick={callUno}
-            className="absolute bottom-6 right-4 bg-uno-yellow text-black font-black text-sm px-4 py-2 rounded-full animate-bounce-in"
-          >
-            ¡UNO!
-          </button>
-        )}
-      </div>
+        <button onClick={callUno} disabled={myHand.length !== 1} className="table-uno-button">¡ÚLTIMA!<span>¡Cántalo con una carta!</span></button>
+
+        <section className="player-area" aria-label="Tu mano">
+          <div className="player-hand-scroll">
+            <div className="player-hand">
+              {myHand.map((card, index) => {
+                const offset = index - (myHand.length - 1) / 2
+                return <div key={card.id} className="hand-card" style={{
+                  '--fan-angle': `${offset * Math.min(5, 40 / Math.max(myHand.length, 1))}deg`,
+                  '--fan-lift': `${Math.abs(offset) * Math.min(5, 30 / Math.max(myHand.length, 1))}px`,
+                } as CSSProperties}>
+                  <UnoCard color={card.card_color} type={card.card_type} size="lg"
+                    playable={isMyTurn && canPlay(card, gameState)}
+                    animate={!prevHandIds.has(card.id) ? 'draw' : undefined}
+                    onClick={isMyTurn && canPlay(card, gameState) ? () => playCard(card) : undefined} />
+                </div>
+              })}
+            </div>
+          </div>
+          <div className={`turn-status ${isMyTurn ? 'your-turn' : ''}`} role="status">
+            <span>{isMyTurn ? '▶' : '◷'}</span>{isMyTurn ? 'Tu turno' : `Turno de ${currentPlayer?.name ?? '…'}`}
+          </div>
+          <p className="hand-caption">{me?.name ?? 'Tú'} · {myHand.length} cartas <span>{isMyTurn ? 'Elige una carta iluminada o roba del mazo' : 'La mesa está en juego'}</span></p>
+        </section>
+      </main>
 
       {/* Aviso de victoria bloqueada */}
       {winBlockMsg && (

@@ -86,6 +86,7 @@ export interface EffectOverlayState {
 
 // Sesión local del jugador (guardada en sessionStorage)
 export interface LocalSession {
+  playerCount?: number
   playerId: string
   roomId:   string
   roomCode: string

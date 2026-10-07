@@ -1,22 +1,18 @@
+import { OFFLINE_MODE } from './offline'
 import { createClient } from '@supabase/supabase-js'
 
 const url = import.meta.env.VITE_SUPABASE_URL  as string
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 
-if (!url || !key) {
-  throw new Error('Faltan variables de entorno VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY')
+if (!OFFLINE_MODE && (!url || !key)) {
+  throw new Error('Faltan variables de entorno de Supabase para el modo multijugador')
 }
 
-// Debug: verificar que las vars llegaron bien (solo en dev o si hay error)
-if (import.meta.env.DEV) {
-  console.log('[supabase] URL:', url)
-  console.log('[supabase] KEY length:', key.length, '| starts:', key.substring(0, 20))
-}
-
-export const supabase = createClient(url, key, {
+export const supabase = createClient(url || 'http://127.0.0.1:54321', key || 'offline-placeholder', {
   auth: {
-    persistSession: true,
-    autoRefreshToken: true,
+    persistSession: !OFFLINE_MODE,
+    autoRefreshToken: !OFFLINE_MODE,
+    detectSessionInUrl: !OFFLINE_MODE,
   },
 })
 

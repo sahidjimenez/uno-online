@@ -102,7 +102,7 @@ function RulesModal({ onClose }: { onClose: () => void }) {
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-white font-black text-lg">Reglas — UNO Europeo</h2>
+          <h2 className="text-white font-black text-lg">Reglas — NEXO · Reglas europeas</h2>
           <button onClick={onClose} className="text-gray text-xl leading-none">✕</button>
         </div>
 
@@ -147,10 +147,10 @@ function RulesModal({ onClose }: { onClose: () => void }) {
           </ul>
         </Section>
 
-        <Section title="📢 UNO">
+        <Section title="📢 Última carta">
           <ul>
-            <li>Cuando te quede <strong>1 carta</strong>, debes gritar <strong>¡UNO!</strong> antes de que otro jugador lo note.</li>
-            <li>Si te pillan sin cantar UNO, recibes <strong>4 cartas de penalización</strong> (regla europea).</li>
+            <li>Cuando te quede <strong>1 carta</strong>, debes gritar <strong>¡ÚLTIMA!</strong> antes de que otro jugador lo note.</li>
+            <li>Si te pillan sin avisar de tu última carta, recibes <strong>4 cartas de penalización</strong> (regla europea).</li>
           </ul>
         </Section>
 
@@ -292,7 +292,7 @@ export function Home({ onEnter }: Props) {
       {/* Logo + botón reglas */}
       <div className="relative mb-4">
         <div className="bg-uno-red rounded-[20px] w-40 h-20 flex items-center justify-center shadow-[0_8px_24px_rgba(220,38,38,0.55)]">
-          <span className="text-white text-5xl font-black">UNO</span>
+          <span className="text-white text-5xl font-black">NEXO</span>
         </div>
         <button
           onClick={() => setShowRules(true)}
@@ -427,7 +427,7 @@ export function Home({ onEnter }: Props) {
 
       {error && <p className="text-uno-red text-sm text-center mt-4">{error}</p>}
 
-      <p className="text-gray text-xs mt-8">2 – 8 jugadores · PWA instalable · unoreglaseuropeas.com</p>
+      <p className="text-gray text-xs mt-8">2 – 8 jugadores · PWA instalable · NEXO · Juego de cartas</p>
     </div>
   )
 }
