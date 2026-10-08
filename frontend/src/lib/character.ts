@@ -12,14 +12,22 @@ export const CLOTHING_COLORS = [
   { id: 'red', name: 'Rojo', hex: '#d65055' },
   { id: 'green', name: 'Verde', hex: '#3b9b7b' },
 ] as const
+export const HAIRSTYLES = [
+  { id: 'short', name: 'Corto' },
+  { id: 'quiff', name: 'Tupé' },
+  { id: 'long', name: 'Largo' },
+  { id: 'ponytail', name: 'Coleta' },
+  { id: 'curly', name: 'Rizado' },
+] as const
 export interface CharacterAppearance {
   gender: 'man' | 'woman'
+  hairstyle: typeof HAIRSTYLES[number]['id']
   hair: typeof HAIR_COLORS[number]['id']
   shirt: typeof CLOTHING_COLORS[number]['id']
   pants: typeof CLOTHING_COLORS[number]['id']
   shoes: typeof CLOTHING_COLORS[number]['id']
 }
-export const DEFAULT_CHARACTER: CharacterAppearance = { gender: 'man', hair: 'brown', shirt: 'green', pants: 'black', shoes: 'white' }
+export const DEFAULT_CHARACTER: CharacterAppearance = { gender: 'man', hairstyle: 'quiff', hair: 'brown', shirt: 'green', pants: 'black', shoes: 'white' }
 export const CHARACTER_KEY = 'nexo-character-v1'
 export const CHARACTER_CHANGED = 'nexo-character-changed'
 
@@ -27,6 +35,8 @@ export function normalizeCharacter(value: unknown): CharacterAppearance {
   const data = value && typeof value === 'object' ? value as Record<string, unknown> : {}
   const result = { ...DEFAULT_CHARACTER }
   if (data.gender === 'man' || data.gender === 'woman') result.gender = data.gender
+  result.hairstyle = result.gender === 'woman' ? 'long' : 'quiff'
+  if (HAIRSTYLES.some(style => style.id === data.hairstyle)) result.hairstyle = data.hairstyle as CharacterAppearance['hairstyle']
   if (HAIR_COLORS.some(c => c.id === data.hair)) result.hair = data.hair as CharacterAppearance['hair']
   for (const field of ['shirt', 'pants', 'shoes'] as const) {
     if (CLOTHING_COLORS.some(c => c.id === data[field])) result[field] = data[field] as CharacterAppearance[typeof field]
@@ -50,6 +60,6 @@ export function saveCharacter(value: CharacterAppearance): boolean {
 export function refreshStoredCharacter() { sessionAppearance = undefined }
 
 export function characterForSeat(index: number): CharacterAppearance {
-  return { gender: index % 2 ? 'woman' : 'man', hair: HAIR_COLORS[index % 5].id,
+  return { gender: index % 2 ? 'woman' : 'man', hairstyle: HAIRSTYLES[index % HAIRSTYLES.length].id, hair: HAIR_COLORS[index % 5].id,
     shirt: CLOTHING_COLORS[(index + 2) % 5].id, pants: index % 2 ? 'blue' : 'black', shoes: index % 3 ? 'white' : 'black' }
 }

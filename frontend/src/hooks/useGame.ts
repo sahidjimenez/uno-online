@@ -8,6 +8,7 @@ export function useOnlineGame(session: LocalSession | null) {
   const [players,    setPlayers]    = useState<Player[]>([])
   const [myHand,     setMyHand]     = useState<Card[]>([])
   const [lastEvent,  setLastEvent]  = useState<GameEvent  | null>(null)
+  const [unoPenalty, setUnoPenalty] = useState<GameEvent | null>(null)
   const [loading,    setLoading]    = useState(true)
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -68,6 +69,7 @@ export function useOnlineGame(session: LocalSession | null) {
       }, payload => {
         const ev = payload.new as GameEvent
         setLastEvent(ev)
+        if (ev.type === 'uno_penalty') setUnoPenalty(ev)
         // Recargar mano cuando cambia (carta jugada de cualquier tipo, o robada)
         const handChangingEvents = new Set([
           'card_played', 'card_drawn',
@@ -76,6 +78,7 @@ export function useOnlineGame(session: LocalSession | null) {
         ])
         if (handChangingEvents.has(ev.type)) {
           loadMyHand()
+          fetchPlayers(session.roomId).then(setPlayers)
         }
       })
       .subscribe()
@@ -95,5 +98,5 @@ export function useOnlineGame(session: LocalSession | null) {
 
   const isMyTurn = gameState?.current_player_id === session?.playerId
 
-  return { gameState, players, myHand, lastEvent, loading, isMyTurn, loadMyHand, localPlay: undefined, localDraw: undefined, localUno: undefined, localCatch: undefined }
+  return { gameState, players, myHand, lastEvent, unoPenalty, loading, isMyTurn, loadMyHand, localPlay: undefined, localDraw: undefined, localUno: undefined, localCatch: undefined }
 }

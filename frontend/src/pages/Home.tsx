@@ -136,6 +136,7 @@ function RulesModal({ onClose }: { onClose: () => void }) {
           <ul>
             <li>Cuando te quede <strong>1 carta</strong>, debes gritar <strong>¡ÚLTIMA!</strong> antes de que otro jugador lo note.</li>
             <li>Si te pillan sin avisar de tu última carta, recibes <strong>4 cartas de penalización</strong> (regla europea).</li>
+            <li>Si llega tu siguiente turno y aún no pulsaste <strong>¡ÚLTIMA!</strong>, robas automáticamente <strong>4 cartas</strong> y puedes continuar tu turno. El botón desaparece al avisar.</li>
           </ul>
         </Section>
 

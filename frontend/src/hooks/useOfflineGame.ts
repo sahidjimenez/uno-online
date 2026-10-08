@@ -10,6 +10,7 @@ export interface LocalGame {
   deck: DeckCard[]
   discard: DeckCard[]
   lastEvent: GameEvent | null
+  unoPenalty: GameEvent | null
 }
 export function createLocalGame(session: LocalSession): LocalGame {
   const deck = shuffle(createDeck())
@@ -22,7 +23,7 @@ export function createLocalGame(session: LocalSession): LocalGame {
   for (const player of players) hands[player.id] = Array.from({ length: 7 }, () => makeCard(deck.pop()!, player.id, session.roomId))
   const start = deck.findIndex(card => /^\d$/.test(card.type))
   const top = deck.splice(start, 1)[0]
-  return { players, hands, deck, discard: [top], lastEvent: null, gameState: {
+  return { players, hands, deck, discard: [top], lastEvent: null, unoPenalty: null, gameState: {
     id: 'local-game', room_id: session.roomId, version: 0, status: 'playing', current_player_id: session.playerId,
     direction: 1, current_color: top.color, top_card_color: top.color, top_card_type: top.type,
     draw_stack: 0, draw_pile_count: deck.length, winner_id: null, updated_at: new Date().toISOString(),
@@ -40,6 +41,7 @@ export function localAction(game: LocalGame, actor: string, action: 'play' | 'dr
   const player = next.players.find(p => p.id === actor)
   if (!player) return game
   let event: GameEvent['type'] = 'turn_changed'
+  let penalizedId: string | undefined
   const draw = (id: string, count: number) => {
     for (let i = 0; i < count; i++) {
       if (!next.deck.length && next.discard.length > 1) {
@@ -52,7 +54,15 @@ export function localAction(game: LocalGame, actor: string, action: 'play' | 'dr
     }
     next.players.find(p => p.id === id)!.has_called_uno = false
   }
-  const advance = (skip = false) => { next.gameState.current_player_id = next.players[nextPlayerIndex(player.seat_order, next.players.length, next.gameState.direction, skip)].id }
+  const advance = (skip = false) => {
+    const incoming = next.players[nextPlayerIndex(player.seat_order, next.players.length, next.gameState.direction, skip)]
+    next.gameState.current_player_id = incoming.id
+    // A two-player skip/reverse keeps the same turn: allow time to announce.
+    if (incoming.id !== actor && next.hands[incoming.id].length === 1 && !incoming.has_called_uno) {
+      draw(incoming.id, 4)
+      penalizedId = incoming.id
+    }
+  }
   if (action === 'play') {
     const card = next.hands[actor].find(c => c.id === cardId)
     if (!card || !canPlay(card, state) || (next.hands[actor].length === 1 && !canWinWith(card))) return game
@@ -72,13 +82,14 @@ export function localAction(game: LocalGame, actor: string, action: 'play' | 'dr
     const drawn = next.hands[actor][next.hands[actor].length - 1]
     if (stack || !drawn || !canPlay(drawn, next.gameState)) advance()
   } else if (action === 'uno') {
-    if (next.hands[actor].length !== 1) return game
+    if (next.hands[actor].length !== 1 || player.has_called_uno) return game
     player.has_called_uno = true
     event = 'uno_called'
   } else if (accused && accused !== actor) {
     const target = next.players.find(p => p.id === accused)
     if (!target || next.hands[accused].length !== 1 || target.has_called_uno) return game
     draw(accused, 4)
+    penalizedId = accused
     event = 'uno_penalty'
   } else return game
   next.players.forEach(p => { p.hand_count = next.hands[p.id].length })
@@ -86,6 +97,8 @@ export function localAction(game: LocalGame, actor: string, action: 'play' | 'dr
   next.gameState.draw_pile_count = next.deck.length
   next.gameState.updated_at = new Date().toISOString()
   next.lastEvent = { id: crypto.randomUUID(), room_id: state.room_id, player_id: actor, type: event, payload: {}, version: next.gameState.version, created_at: next.gameState.updated_at }
+  if (penalizedId) next.unoPenalty = { ...next.lastEvent, id: crypto.randomUUID(), type: 'uno_penalty', player_id: penalizedId,
+    payload: { accused_id: penalizedId, cards_given: next.hands[penalizedId].length - game.hands[penalizedId].length, automatic: action !== 'catch' } }
   return next
 }
 export function useOfflineGame(session: LocalSession | null) {
@@ -113,7 +126,7 @@ export function useOfflineGame(session: LocalSession | null) {
     }, 1100 / botSpeed)
     return () => clearTimeout(timer)
   }, [game, session?.playerId, botSpeed])
-  return { gameState: game.gameState, players: game.players, myHand: game.hands[session!.playerId], lastEvent: game.lastEvent,
+  return { gameState: game.gameState, players: game.players, myHand: game.hands[session!.playerId], lastEvent: game.lastEvent, unoPenalty: game.unoPenalty,
     botSpeed, changeBotSpeed,
     loading: false, isMyTurn: game.gameState.current_player_id === session?.playerId, loadMyHand: async () => {},
     localPlay: (card: Card, color?: CardColor) => setGame(g => localAction(g, session!.playerId, 'play', card.id, color)),

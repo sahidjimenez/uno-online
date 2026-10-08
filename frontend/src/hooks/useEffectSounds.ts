@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-type SoundType = 'skip' | 'reverse' | 'draw_stack' | 'draw_resolved'
+type SoundType = 'skip' | 'reverse' | 'draw_stack' | 'draw_resolved' | 'uno_penalty'
 interface SoundEffect { id: string; type: SoundType; stack: number }
 const STORAGE_KEY = 'nexo-sound-enabled'
 
@@ -62,7 +62,10 @@ export function useEffectSounds(effect: SoundEffect | null) {
       oscillator.stop(start + duration + 0.02)
       oscillator.onended = () => { oscillator.disconnect(); envelope.disconnect() }
     }
-    if (effect.type === 'reverse') {
+    if (effect.type === 'uno_penalty') {
+      tone(180, 95, 0, 0.28, 'triangle')
+      for (let i = 0; i < 4; i++) tone(520 - i * 70, 180, 0.32 + i * 0.12, 0.1, 'triangle')
+    } else if (effect.type === 'reverse') {
       tone(240, 850, 0, 0.2, 'triangle')
       tone(850, 280, 0.17, 0.3, 'triangle')
     } else if (effect.type === 'draw_stack') {

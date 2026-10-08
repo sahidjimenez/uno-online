@@ -3,7 +3,7 @@ import { CLOTHING_COLORS, HAIR_COLORS, DEFAULT_CHARACTER, normalizeCharacter } f
 
 describe('saved character preferences', () => {
   it('preserves a complete custom appearance', () => {
-    const appearance = { gender: 'woman', hair: 'white', shirt: 'red', pants: 'blue', shoes: 'black' }
+    const appearance = { gender: 'woman', hairstyle: 'curly', hair: 'white', shirt: 'red', pants: 'blue', shoes: 'black' }
     expect(normalizeCharacter(appearance)).toEqual(appearance)
   })
   it('recovers corrupted and missing preferences without passing invalid colors to the model', () => {
@@ -18,5 +18,10 @@ describe('saved character preferences', () => {
       expect(palette.some(color => color.id === 'black')).toBe(true)
       expect(palette.some(color => color.id === 'white')).toBe(true)
     }
+  })
+  it('keeps older saved appearances compatible and rejects unknown hairstyles', () => {
+    expect(normalizeCharacter({ gender: 'woman' }).hairstyle).toBe('long')
+    expect(normalizeCharacter({ gender: 'man', hairstyle: 'invalid' }).hairstyle).toBe('quiff')
+    expect(normalizeCharacter({ gender: 'man', hairstyle: 'ponytail' }).hairstyle).toBe('ponytail')
   })
 })

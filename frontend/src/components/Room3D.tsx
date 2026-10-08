@@ -156,7 +156,7 @@ export default function Room3D({ players, gameState, playerId, appearance, onFal
         seat.add(character.group); dynamicResources.push(character)
         const map = sign(player.name + (player.id === playerId && player.name !== 'Tú' ? ' · Tú' : ''), `${player.hand_count ?? 0} cartas${player.id === state.current_player_id ? ' · SU TURNO' : ''}`, player.id === state.current_player_id ? '#a9ffd9' : '#d1cfb6')
         const labelMat = new THREE.SpriteMaterial({ map, depthTest: true }); dynamicResources.push(map, labelMat)
-        const label = new THREE.Sprite(labelMat); label.position.set(seat.position.x, 2.25, seat.position.z); dynamic.add(label); labels.push(label)
+        const label = new THREE.Sprite(labelMat); label.position.set(seat.position.x, 2.95, seat.position.z); dynamic.add(label); labels.push(label)
         const hand = new THREE.Group(); hand.position.set(Math.sin(angle) * 1.98, 1.52, Math.cos(angle) * 1.98); hand.rotation.y = angle; dynamic.add(hand)
         for (let c = 0; c < Math.min(player.hand_count ?? 0, 7); c++) flatCard(backMat, (c - (Math.min(player.hand_count ?? 0, 7) - 1) / 2) * 0.13, c * 0.003, 0, (c - 3) * 0.05, hand)
       })
@@ -204,7 +204,7 @@ export default function Room3D({ players, gameState, playerId, appearance, onFal
       pointer.x = event.clientX; pointer.y = event.clientY
     }
     const up = () => { pointer = null }
-    const keys = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']
+    const keys = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft', 'ShiftRight']
     const keydown = (event: KeyboardEvent) => {
       if (event.target !== container) return
       if (keys.includes(event.code)) { event.preventDefault(); input.current.add(event.code) }
@@ -223,6 +223,8 @@ export default function Room3D({ players, gameState, playerId, appearance, onFal
       const dt = Math.min((time - last) / 1000, 0.05); last = time
       if (document.hidden) return
       const pressed = (...codes: string[]) => codes.some(code => input.current.has(code))
+      const vertical = Number(pressed('Space')) - Number(pressed('ShiftLeft', 'ShiftRight'))
+      camera.position.y = THREE.MathUtils.clamp(camera.position.y + vertical * dt * 2, 1.2, 5.8)
       if (walk) {
         const forward = Number(pressed('KeyW', 'ArrowUp')) - Number(pressed('KeyS', 'ArrowDown'))
         const side = Number(pressed('KeyD', 'ArrowRight')) - Number(pressed('KeyA', 'ArrowLeft'))
@@ -253,13 +255,13 @@ export default function Room3D({ players, gameState, playerId, appearance, onFal
 
   function setMode(walk: boolean) { setWalking(walk); controller.current?.reset(walk); host.current?.focus() }
   return <>
-    <div ref={host} className="room3d-canvas" tabIndex={0} role="region" aria-label="Sala 3D. Arrastra para mirar. En modo recorrer, usa W A S D o las flechas para caminar." />
+    <div ref={host} className="room3d-canvas" tabIndex={0} role="region" aria-label="Sala 3D. Arrastra para mirar. Espacio para subir y Shift para bajar. En modo recorrer, usa W A S D o las flechas para caminar." />
     <div className="room3d-controls">
       <div className="room3d-mode"><button onClick={() => setMode(false)} aria-pressed={!walking}>Vista de mesa</button><button onClick={() => setMode(true)} aria-pressed={walking}>Recorrer sala</button></div>
-      <p>{walking ? 'W A S D / flechas · Arrastra para mirar' : 'Arrastra para mirar · Tu mano siempre a la vista'}</p>
+      <p>{walking ? 'W A S D / flechas · Arrastra para mirar' : 'Arrastra para mirar · Tu mano siempre a la vista'}<br />Espacio: subir · Shift: bajar</p>
     </div>
     {walking && <div className="room3d-pad" aria-label="Controles para caminar">
-      {([['KeyW', '↑', 'Avanzar'], ['KeyA', '←', 'Izquierda'], ['KeyS', '↓', 'Retroceder'], ['KeyD', '→', 'Derecha']] as const).map(([code, icon, label]) => <button key={code} aria-label={label}
+      {([['KeyW', '↑', 'Avanzar'], ['KeyA', '←', 'Izquierda'], ['KeyS', '↓', 'Retroceder'], ['KeyD', '→', 'Derecha'], ['Space', 'Subir', 'Subir cámara'], ['ShiftLeft', 'Bajar', 'Bajar cámara']] as const).map(([code, icon, label]) => <button key={code} aria-label={label}
         onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); input.current.add(code) }}
         onPointerUp={() => input.current.delete(code)} onPointerCancel={() => input.current.delete(code)} onLostPointerCapture={() => input.current.delete(code)}
         onKeyDown={event => { if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); input.current.add(code) } }}

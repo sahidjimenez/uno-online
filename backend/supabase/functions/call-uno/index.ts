@@ -11,23 +11,15 @@ Deno.serve(async (req) => {
 
   const { room_id, player_id } = await req.json()
 
-  // Verificar que el jugador tiene exactamente 1 carta
-  const { count } = await supabase
-    .from('hands')
-    .select('*', { count: 'exact', head: true })
-    .eq('player_id', player_id)
-
-  if (count !== 1) return err('Solo puedes cantar UNO cuando tienes 1 carta')
-
-  // Marcar UNO
-  await supabase.from('players')
-    .update({ has_called_uno: true })
-    .eq('id', player_id)
-
-  await supabase.from('events').insert({
-    room_id, player_id, type: 'uno_called',
-    payload: { player_id },
-  })
+  const token = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '')
+  if (!token) return err('Sesión requerida', 401)
+  const { data: auth, error: authError } = await supabase.auth.getUser(token)
+  if (authError || !auth.user) return err('Sesión inválida', 401)
+  const { data: player } = await supabase.from('players').select('id')
+    .eq('id', player_id).eq('room_id', room_id).eq('user_id', auth.user.id).single()
+  if (!player) return err('Jugador no válido', 403)
+  const { error } = await supabase.rpc('announce_last_card', { p_room_id: room_id, p_player_id: player_id })
+  if (error) return err(error.message)
 
   return json({ ok: true })
 })

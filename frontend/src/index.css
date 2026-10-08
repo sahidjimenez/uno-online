@@ -17,6 +17,8 @@ body {
 }
 
 :root{--card-red:#ed2437;--card-blue:#0879da;--card-green:#20a34a;--card-yellow:#f8c817;--card-wild:#14151a}
+.effect-uno_penalty .effect-symbol { background:#773a35; border-color:#f3a492; box-shadow:0 0 55px #eb786755; }
+.effect-uno_penalty .effect-mini-cards i:nth-child(4) { transform:translate(42px,12px) rotate(25deg); }
 
 .game-room{min-height:100dvh;background:radial-gradient(ellipse at 50% 30%,#293741,#10171d 50%,#080d12);overflow:hidden}
 

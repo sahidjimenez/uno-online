@@ -17,17 +17,24 @@ export default function CharacterPreview({ appearance }: { appearance: Character
     renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5))
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping
+    renderer.shadowMap.enabled = true
+    renderer.shadowMap.type = THREE.PCFShadowMap
     container.appendChild(renderer.domElement)
     const scene = new THREE.Scene()
     const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 20)
-    camera.position.set(0, 1.4, 4.2); camera.lookAt(0, 0.98, 0)
-    scene.add(new THREE.HemisphereLight('#ffffff', '#728778', 2.8))
-    const light = new THREE.DirectionalLight('#fff1dc', 3); light.position.set(3, 5, 4); scene.add(light)
+    camera.position.set(0, 1.75, 5.7); camera.lookAt(0, 1.38, 0)
+    scene.add(new THREE.HemisphereLight('#ffffff', '#547467', 2))
+    const light = new THREE.DirectionalLight('#fff1dc', 3); light.position.set(-3, 5, 4)
+    light.castShadow = true; light.shadow.mapSize.set(1024, 1024)
+    light.shadow.camera.left = -2; light.shadow.camera.right = 2
+    light.shadow.camera.top = 4; light.shadow.camera.bottom = -1
+    light.shadow.normalBias = 0.025; scene.add(light)
+    const rim = new THREE.DirectionalLight('#b2ffe3', 2); rim.position.set(2, 3, -3); scene.add(rim)
     const character = createCharacter(initial.current); model.current = character
     character.group.rotation.y = Math.PI / 9; scene.add(character.group)
     const geometry = new THREE.CylinderGeometry(0.62, 0.68, 0.07, 48)
     const material = new THREE.MeshStandardMaterial({ color: '#365b51', roughness: 0.6 })
-    const pedestal = new THREE.Mesh(geometry, material); pedestal.position.y = -0.04; scene.add(pedestal)
+    const pedestal = new THREE.Mesh(geometry, material); pedestal.position.y = -0.04; pedestal.receiveShadow = true; scene.add(pedestal)
     const resize = () => {
       const { width, height } = container.getBoundingClientRect()
       renderer.setSize(width, height); camera.aspect = width / Math.max(1, height); camera.updateProjectionMatrix()
@@ -38,7 +45,7 @@ export default function CharacterPreview({ appearance }: { appearance: Character
     renderer.setAnimationLoop(() => { if (!document.hidden) renderer.render(scene, camera) })
     return () => {
       observer.disconnect(); renderer.setAnimationLoop(null); renderer.domElement.removeEventListener('webglcontextlost', lost)
-      character.dispose(); model.current = null; geometry.dispose(); material.dispose(); renderer.dispose(); renderer.domElement.remove()
+      character.dispose(); model.current = null; geometry.dispose(); material.dispose(); light.shadow.map?.dispose(); renderer.dispose(); renderer.domElement.remove()
     }
   }, [])
   useEffect(() => { model.current?.update(appearance) }, [appearance])

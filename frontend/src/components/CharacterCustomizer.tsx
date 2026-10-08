@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { CLOTHING_COLORS, HAIR_COLORS, saveCharacter, type CharacterAppearance } from '../lib/character'
+import { CLOTHING_COLORS, HAIR_COLORS, HAIRSTYLES, saveCharacter, type CharacterAppearance } from '../lib/character'
 import { useCharacter } from '../hooks/useCharacter'
 import './CharacterCustomizer.css'
 
@@ -23,6 +23,9 @@ function Editor({ initial, onClose, onSave }: { initial: CharacterAppearance; on
       <div className="character-options">
         <fieldset className="character-gender"><legend>Personaje</legend><div>{(['man', 'woman'] as const).map(gender => <label key={gender} className={draft.gender === gender ? 'is-selected' : ''}>
           <input type="radio" name="character-gender" value={gender} checked={draft.gender === gender} onChange={() => setDraft(value => ({ ...value, gender }))} />{gender === 'man' ? 'Hombre' : 'Mujer'}
+        </label>)}</div></fieldset>
+        <fieldset className="character-gender character-hairstyles"><legend>Peinado</legend><div>{HAIRSTYLES.map(style => <label key={style.id} className={draft.hairstyle === style.id ? 'is-selected' : ''}>
+          <input type="radio" name="character-hairstyle" aria-label={`Peinado: ${style.name}`} value={style.id} checked={draft.hairstyle === style.id} onChange={() => setDraft(value => ({ ...value, hairstyle: style.id }))} />{style.name}
         </label>)}</div></fieldset>
         {FIELDS.map(({ key, label, colors }) => <fieldset key={key} className="character-colors"><legend>{label} <span>{colors.find(color => color.id === draft[key])?.name}</span></legend><div>
           {colors.map(color => <label key={color.id} className={draft[key] === color.id ? 'is-selected' : ''} title={color.name}>

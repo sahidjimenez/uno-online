@@ -177,3 +177,24 @@ VITE_SUPABASE_ANON_KEY=<anon key del dashboard>
 | events | misma sala | ❌ clientes | — | — |
 
 `hands`, `game_state` y `events` solo se escriben via Edge Functions con `service_role`.
+
+## Penalización automática de última carta
+
+Al pasar el turno a un jugador con una carta que no haya avisado, recibe cuatro
+cartas y conserva su turno. Un salto no penaliza al jugador saltado. Una reversa
+de dos jugadores que conserva el turno permite avisar antes de continuar.
+
+Para activar esta regla en el servidor:
+
+1. Aplicar `supabase/migrations/009_uno_penalty_event.sql` y confirmar esa transacción.
+2. Aplicar `supabase/migrations/010_automatic_uno_penalty.sql`.
+3. Publicar las funciones `call-uno`, `play-card` y `draw-card` después de las migraciones.
+
+La penalización se ejecuta dentro de la actualización de turno de PostgreSQL,
+no depende de un temporizador del navegador. El aviso usa el mismo bloqueo de
+partida para evitar que una petición tardía marque una mano ya penalizada.
+El cliente usa el evento `uno_penalty` para actualizar la mano, mostrar +4 y
+reproducir el sonido (si está activado).
+
+Pruebas de migraciones sin conexión al servidor: ejecutar `npm test` en `backend`.
+Usan PostgreSQL embebido (PGlite) y no modifican la base de datos de Supabase.

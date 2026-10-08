@@ -59,13 +59,14 @@ Deno.serve(async (req) => {
 
   // 6. Actualizar game_state
   const newVersion = gs.version + 1
-  await supabase.from('game_state').update({
+  const { error: stateError } = await supabase.from('game_state').update({
     version:           newVersion,
     current_player_id: nextPlayer,
     draw_stack:        0,                    // stack resuelto
     draw_pile_count:   drawPileCount - cardsToDraw,
     updated_at:        new Date().toISOString(),
   }).eq('room_id', room_id)
+  if (stateError) return err(stateError.message, 500)
 
   // 7. Registrar evento
   await supabase.from('events').insert({

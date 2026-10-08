@@ -50,8 +50,91 @@ describe('local game', () => {
       const hand = game.hands[actor]
       const playable = hand.find(c => canPlay(c, game.gameState) && (hand.length > 1 || canWinWith(c)))
       game = playable ? localAction(game, actor, 'play', playable.id, 'red') : localAction(game, actor, 'draw')
+      if (game.hands[actor].length === 1) game = localAction(game, actor, 'uno')
     }
     expect(game.gameState.status).toBe('finished')
     expect(game.hands[game.gameState.winner_id!]).toHaveLength(0)
+  })
+})
+
+describe('automatic last-card penalty', () => {
+  function setup(type: Card['card_type'] = '7') {
+    const game = createLocalGame(session)
+    game.gameState.current_color = 'red'
+    game.hands.me = [card('play', type), card('keep', '8')]
+    game.hands['bot-1'] = [{ ...card('last', '9'), player_id: 'bot-1' }]
+    return game
+  }
+  it('gives four cards exactly when the unannounced player receives their turn', () => {
+    const game = setup()
+    const before = game.deck.length
+    const next = localAction(game, 'me', 'play', 'play')
+    expect(next.gameState.current_player_id).toBe('bot-1')
+    expect(next.hands['bot-1']).toHaveLength(5)
+    expect(next.deck).toHaveLength(before - 4)
+    expect(next.hands.me).toHaveLength(1)
+    expect(next.unoPenalty?.payload).toMatchObject({ accused_id: 'bot-1', cards_given: 4, automatic: true })
+    expect(game.hands['bot-1']).toHaveLength(1)
+  })
+  it('honors an announcement and ignores repeated button presses', () => {
+    const announced = localAction(setup(), 'bot-1', 'uno')
+    expect(localAction(announced, 'bot-1', 'uno')).toBe(announced)
+    const next = localAction(announced, 'me', 'play', 'play')
+    expect(next.hands['bot-1']).toHaveLength(1)
+    expect(next.unoPenalty).toBeNull()
+  })
+  it('does not penalize a skipped player until their turn actually arrives', () => {
+    const next = localAction(setup('skip'), 'me', 'play', 'play')
+    expect(next.gameState.current_player_id).toBe('bot-2')
+    expect(next.hands['bot-1']).toHaveLength(1)
+    expect(next.unoPenalty).toBeNull()
+  })
+  it('follows reverse direction and preserves an active draw stack', () => {
+    const game = setup('reverse')
+    game.hands['bot-3'] = [{ ...card('other-last', '9'), player_id: 'bot-3' }]
+    game.gameState.draw_stack = 2
+    const next = localAction(game, 'me', 'play', 'play')
+    expect(next.hands['bot-3']).toHaveLength(5)
+    expect(next.gameState.draw_stack).toBe(2)
+    expect(next.gameState.current_player_id).toBe('bot-3')
+  })
+  it('also applies when drawing passes the turn and never repeats on the same hand', () => {
+    const game = setup()
+    game.gameState.draw_stack = 2
+    const next = localAction(game, 'me', 'draw')
+    expect(next.hands['bot-1']).toHaveLength(5)
+    const penaltyId = next.unoPenalty?.id
+    const after = localAction(next, 'bot-1', 'draw')
+    expect(after.unoPenalty?.id).toBe(penaltyId)
+  })
+  it('keeps the penalty event when a bot announces its own last card afterward', () => {
+    const next = localAction(setup(), 'me', 'play', 'play')
+    const announced = localAction(next, 'me', 'uno')
+    expect(announced.unoPenalty).toBe(next.unoPenalty)
+  })
+  it('does not penalize again after another player has already caught the omission', () => {
+    const caught = localAction(setup(), 'me', 'catch', undefined, undefined, 'bot-1')
+    expect(caught.hands['bot-1']).toHaveLength(5)
+    const next = localAction(caught, 'me', 'play', 'play')
+    expect(next.hands['bot-1']).toHaveLength(5)
+    expect(next.unoPenalty?.id).toBe(caught.unoPenalty?.id)
+    expect(localAction(next, 'bot-1', 'uno')).toBe(next)
+  })
+  it('recycles the discard to give all four cards', () => {
+    const game = setup()
+    game.deck = []
+    game.discard = Array.from({ length: 5 }, () => ({ color: 'blue' as const, type: '2' as const }))
+    const next = localAction(game, 'me', 'play', 'play')
+    expect(next.hands['bot-1']).toHaveLength(5)
+    expect(next.discard).toEqual([{ color: 'red', type: '7' }])
+  })
+  it('gives the player a chance to announce after a two-player skip', () => {
+    const game = createLocalGame({ ...session, playerCount: 2 })
+    game.gameState.current_color = 'red'
+    game.hands.me = [card('skip', 'skip'), card('last', '8')]
+    const next = localAction(game, 'me', 'play', 'skip')
+    expect(next.gameState.current_player_id).toBe('me')
+    expect(next.hands.me).toHaveLength(1)
+    expect(next.unoPenalty).toBeNull()
   })
 })

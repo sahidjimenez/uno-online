@@ -36,11 +36,14 @@ function OnlineBoard(props: Props) {
   return <BoardView {...props} game={game} />
 }
 function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeof useOfflineGame> | ReturnType<typeof useOnlineGame> }) {
-  const { gameState, players, myHand, lastEvent, loading, isMyTurn, localPlay, localDraw, localUno, localCatch } = game
+  const { gameState, players, myHand, lastEvent, unoPenalty, loading, isMyTurn, localPlay, localDraw, localUno, localCatch } = game
   const [pendingWild,      setPendingWild]      = useState<Card | null>(null)
   const [room3D, setRoom3D] = useState(true)
   const appearance = useCharacter()
-  const [tableEffect, setTableEffect] = useState<(NonNullable<ReturnType<typeof detectTableEffect>> & { id: string }) | null>(null)
+  const [tableEffect, setTableEffect] = useState<{ type: NonNullable<ReturnType<typeof detectTableEffect>>['type'] | 'uno_penalty'; stack: number; id: string; playerId?: string } | null>(null)
+  const [unoAcknowledged, setUnoAcknowledged] = useState<string | null>(null)
+  const unoPending = useRef(false)
+  const seenPenalty = useRef<string | null>(null)
   const { soundEnabled, toggleSound } = useEffectSounds(tableEffect)
   const previousState = useRef(gameState)
   const [prevHandIds,      setPrevHandIds]       = useState<Set<string>>(new Set())
@@ -63,14 +66,21 @@ function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeo
     [players, session.playerId]
   )
   const me = players.find(p => p.id === session.playerId)
+  useEffect(() => { if (myHand.length !== 1) setUnoAcknowledged(null) }, [myHand.length])
 
   useEffect(() => {
     if (gameState && previousState.current) {
       const effect = detectTableEffect(previousState.current, gameState)
-      if (effect) setTableEffect({ ...effect, id: `${gameState.room_id}-${gameState.version}` })
+      if (effect) setTableEffect(current => current?.type === 'uno_penalty' ? current : { ...effect, id: `${gameState.room_id}-${gameState.version}` })
     }
     previousState.current = gameState
   }, [gameState])
+  useEffect(() => {
+    if (!unoPenalty || seenPenalty.current === unoPenalty.id) return
+    seenPenalty.current = unoPenalty.id
+    setTableEffect({ type: 'uno_penalty', id: unoPenalty.id, stack: Number(unoPenalty.payload.cards_given ?? 4),
+      playerId: String(unoPenalty.payload.accused_id ?? unoPenalty.player_id) })
+  }, [unoPenalty])
   useEffect(() => {
     if (!tableEffect) return
     const timer = setTimeout(() => setTableEffect(null), 1900)
@@ -118,10 +128,22 @@ function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeo
   }
 
   async function callUno() {
-    if (localUno) { localUno(); return }
-    await supabase.functions.invoke('call-uno', {
-      body: { room_id: session.roomId, player_id: session.playerId },
-    })
+    if (myHand.length !== 1 || me?.has_called_uno || unoPending.current || unoAcknowledged === myHand[0].id) return
+    unoPending.current = true
+    setUnoAcknowledged(myHand[0].id)
+    try {
+      if (localUno) localUno()
+      else {
+        const { error } = await supabase.functions.invoke('call-uno', {
+          body: { room_id: session.roomId, player_id: session.playerId },
+        })
+        if (error) throw error
+      }
+    } catch {
+      setUnoAcknowledged(null)
+      setWinBlockMsg('No se pudo avisar. Vuelve a pulsar ¡ÚLTIMA!')
+      setTimeout(() => setWinBlockMsg(null), 3000)
+    } finally { unoPending.current = false }
   }
 
   async function catchUno(accusedId: string) {
@@ -236,7 +258,8 @@ function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeo
           </div>
         </>}
 
-        <button onClick={callUno} disabled={myHand.length !== 1} className="table-uno-button">¡ÚLTIMA!<span>¡Cántalo con una carta!</span></button>
+        {myHand.length === 1 && !me?.has_called_uno && unoAcknowledged !== myHand[0].id &&
+          <button onClick={callUno} className="table-uno-button">¡ÚLTIMA!<span>Avísalo antes de tu próximo turno</span></button>}
 
         <section className="player-area" aria-label="Tu mano">
           <div className="player-hand-scroll">
@@ -287,7 +310,7 @@ function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeo
           key={tableEffect.id}
           type={tableEffect.type}
           stack={tableEffect.stack}
-          byPlayer={players.find(p => p.id === lastEvent?.player_id)?.name}
+          byPlayer={players.find(p => p.id === (tableEffect.playerId ?? lastEvent?.player_id))?.name}
           color={gameState.top_card_color ?? undefined}
         />
       )}

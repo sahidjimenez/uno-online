@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
 
   // 9. Actualizar game_state
   const newVersion = gs.version + 1
-  await supabase.from('game_state').update({
+  const { error: stateError } = await supabase.from('game_state').update({
     version:           newVersion,
     current_player_id: won ? null : nextPlayerId,
     direction:         newDirection,
@@ -142,6 +142,7 @@ Deno.serve(async (req) => {
     winner_id:         won ? player_id : null,
     updated_at:        new Date().toISOString(),
   }).eq('room_id', room_id)
+  if (stateError) return err(stateError.message, 500)
 
   if (won) {
     await supabase.from('rooms').update({ status: 'finished', updated_at: new Date().toISOString() }).eq('id', room_id)
