@@ -25,5 +25,5 @@ Thumbs.db
 *.local
 
 # Supabase local
-supabase/.branches
-supabase/.temp
+**/supabase/.branches
+**/supabase/.temp
