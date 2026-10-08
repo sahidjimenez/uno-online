@@ -2,7 +2,7 @@ import { StatusScreen } from '../components/StatusScreen'
 import { TableMessages } from '../components/TableMessages'
 import { useEffectSounds } from '../hooks/useEffectSounds'
 import { detectTableEffect } from '../engine/tableEffects'
-import { useState, useMemo, useEffect, useRef, type CSSProperties } from 'react'
+import { lazy, Suspense, useState, useMemo, useEffect, useRef, type CSSProperties } from 'react'
 import { useOnlineGame } from '../hooks/useGame'
 import { useOfflineGame } from '../hooks/useOfflineGame'
 import { UnoCard } from '../components/UnoCard'
@@ -12,6 +12,11 @@ import { EffectOverlay } from '../components/EffectOverlay'
 import { canPlay, canWinWith } from '../engine/rules'
 import { supabase } from '../lib/supabase'
 import type { LocalSession, Card, CardColor, Player } from '../types'
+import '../components/Room3D.css'
+import { CharacterCustomizer } from '../components/CharacterCustomizer'
+import { useCharacter } from '../hooks/useCharacter'
+
+const Room3D = lazy(() => import('../components/Room3D'))
 
 interface Props {
   local?: boolean
@@ -33,6 +38,8 @@ function OnlineBoard(props: Props) {
 function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeof useOfflineGame> | ReturnType<typeof useOnlineGame> }) {
   const { gameState, players, myHand, lastEvent, loading, isMyTurn, localPlay, localDraw, localUno, localCatch } = game
   const [pendingWild,      setPendingWild]      = useState<Card | null>(null)
+  const [room3D, setRoom3D] = useState(true)
+  const appearance = useCharacter()
   const [tableEffect, setTableEffect] = useState<(NonNullable<ReturnType<typeof detectTableEffect>> & { id: string }) | null>(null)
   const { soundEnabled, toggleSound } = useEffectSounds(tableEffect)
   const previousState = useRef(gameState)
@@ -140,17 +147,34 @@ function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeo
   const colorNames = { red: 'Rojo', blue: 'Azul', green: 'Verde', yellow: 'Amarillo', wild: 'Comodín' }
 
   return (
-    <div className={`game-room ${tableEffect?.type === 'reverse' ? 'table-reversing' : ''}`}>
+    <div className={`game-room ${room3D ? 'immersive-room' : ''} ${tableEffect?.type === 'reverse' ? 'table-reversing' : ''}`}>
+      {room3D && <Suspense fallback={<div className="room3d-loading" role="status">Preparando la sala 3D…</div>}>
+        <Room3D players={players} gameState={gameState} playerId={session.playerId} appearance={appearance} onFallback={() => setRoom3D(false)} />
+      </Suspense>}
       <header className="table-header">
         <div className="table-brand"><strong>NEXO</strong><span>Mesa 3D</span></div>
         <div className="table-room-code">{localPlay ? 'MODO LOCAL' : 'SALA'} <strong>{localPlay ? 'CONTRA BOTS' : session.roomCode}</strong></div>
+        <div className="table-header-actions">
+        <CharacterCustomizer compact />
+        <button onClick={() => setRoom3D(value => !value)} className="table-view-label" aria-pressed={room3D}>{room3D ? 'Vista clásica' : 'Entrar a sala 3D'}</button>
         <button onClick={toggleSound} className="table-view-label sound-toggle" aria-pressed={soundEnabled}
           aria-label={soundEnabled ? 'Silenciar efectos de sonido' : 'Activar efectos de sonido'}>
           <span aria-hidden="true">{soundEnabled ? '🔊' : '🔇'}</span> {soundEnabled ? 'Sonido activo' : 'Sin sonido'}
         </button>
+        </div>
       </header>
 
+      {'botSpeed' in game && <div className="bot-speed-control">
+        <label htmlFor="bot-speed">Velocidad de bots</label>
+        <select id="bot-speed" value={game.botSpeed} onChange={event => game.changeBotSpeed(Number(event.target.value))}>
+          <option value={0.5}>Tranquila · 0.5×</option>
+          <option value={1}>Normal · 1×</option>
+          <option value={2}>Rápida · 2×</option>
+          <option value={3}>Muy rápida · 3×</option>
+        </select>
+      </div>}
       <main className="table-stage" aria-label="Mesa de juego NEXO">
+        {!room3D && <>
         <div className="walnut-table" aria-hidden="true"><div className="table-grain" /></div>
         <div className={`opponent-seats ${opponents.length > 4 ? 'many-seats' : ''}`}>
           {opponents.map((player, index) => {
@@ -195,6 +219,22 @@ function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeo
           </div>
           {gameState.draw_stack > 0 && <div key={gameState.draw_stack} className="draw-stack-notice">+{gameState.draw_stack} acumulado{isMyTurn && ' · ¡te toca!'}</div>}
         </div>
+        </>}
+
+        {room3D && <>
+          <div className="room3d-roster" aria-label="Jugadores">
+            {opponents.map(player => <OpponentPanel key={player.id} player={player} cardCount={player.hand_count ?? 0}
+              isActive={gameState.current_player_id === player.id} compact onCatch={() => catchUno(player.id)} />)}
+          </div>
+          <div className="room3d-game-status">
+            <span>EN LA MESA</span>
+            {gameState.top_card_color && gameState.top_card_type && <UnoCard color={gameState.top_card_color} type={gameState.top_card_type} size="sm" />}
+            <strong style={{ color: `var(--card-${gameState.current_color})` }}>{colorNames[gameState.current_color ?? 'wild']}</strong>
+            <span>{gameState.direction === 1 ? '↻ Horario' : '↺ Antihorario'}</span>
+            {gameState.draw_stack > 0 && <strong>+{gameState.draw_stack} acumulado</strong>}
+            <button onClick={drawCard} disabled={!isMyTurn}>Robar {gameState.draw_stack || 1} {gameState.draw_stack > 1 ? 'cartas' : 'carta'}<small>{gameState.draw_pile_count} en el mazo</small></button>
+          </div>
+        </>}
 
         <button onClick={callUno} disabled={myHand.length !== 1} className="table-uno-button">¡ÚLTIMA!<span>¡Cántalo con una carta!</span></button>
 

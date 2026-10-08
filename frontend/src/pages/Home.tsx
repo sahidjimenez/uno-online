@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createRoom, joinRoom, findPublicRoom, listPublicRooms } from '../services/room.service'
 import type { PublicRoom } from '../services/room.service'
 import type { LocalSession } from '../types'
+import { CharacterCustomizer } from '../components/CharacterCustomizer'
 
 interface Props {
   onEnter: (session: LocalSession, mode: 'lobby') => void
@@ -304,6 +305,7 @@ export function Home({ onEnter }: Props) {
         onChange={e => setName(e.target.value)}
       />
 
+      <CharacterCustomizer />
       {/* Tabs */}
       <div className="w-full flex bg-surface rounded-xl p-1 mb-5 gap-1">
         {([

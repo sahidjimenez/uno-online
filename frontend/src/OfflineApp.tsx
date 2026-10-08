@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Board } from './pages/Board'
 import { GameOver } from './pages/GameOver'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { CharacterCustomizer } from './components/CharacterCustomizer'
 import type { LocalSession, Player } from './types'
 
 export function OfflineApp({ onOnline }: { onOnline: () => void }) {
@@ -19,6 +20,7 @@ export function OfflineApp({ onOnline }: { onOnline: () => void }) {
         <div className="table-brand justify-center mb-6"><strong>NEXO</strong><span>Mesa 3D</span></div>
         <h1 className="text-2xl font-black mb-3">La mesa está lista</h1>
         <p className="text-gray text-sm mb-7">Conecta colores. Cambia el rumbo. Una mesa para jugar a tu ritmo.</p>
+        <CharacterCustomizer />
         <form onSubmit={event => { event.preventDefault(); start() }}>
           <label htmlFor="local-name" className="block text-left text-sm text-gray mb-2">Tu nombre</label>
           <input id="local-name" value={name} onChange={event => setName(event.target.value)} maxLength={20}

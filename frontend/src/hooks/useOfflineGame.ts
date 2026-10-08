@@ -90,6 +90,14 @@ export function localAction(game: LocalGame, actor: string, action: 'play' | 'dr
 }
 export function useOfflineGame(session: LocalSession | null) {
   const [game, setGame] = useState(() => createLocalGame(session!))
+  const [botSpeed, setBotSpeed] = useState(() => {
+    try { const saved = Number(localStorage.getItem('nexo-bot-speed')); return [0.5, 1, 2, 3].includes(saved) ? saved : 1 } catch { return 1 }
+  })
+  function changeBotSpeed(speed: number) {
+    if (![0.5, 1, 2, 3].includes(speed)) return
+    setBotSpeed(speed)
+    try { localStorage.setItem('nexo-bot-speed', String(speed)) } catch { /* Optional preference storage. */ }
+  }
   useEffect(() => {
     const actor = game.gameState.current_player_id
     if (!actor || actor === session?.playerId || game.gameState.winner_id) return
@@ -102,10 +110,11 @@ export function useOfflineGame(session: LocalSession | null) {
         if (next.hands[actor].length === 1) next = localAction(next, actor, 'uno')
         return next
       })
-    }, 1100)
+    }, 1100 / botSpeed)
     return () => clearTimeout(timer)
-  }, [game, session?.playerId])
+  }, [game, session?.playerId, botSpeed])
   return { gameState: game.gameState, players: game.players, myHand: game.hands[session!.playerId], lastEvent: game.lastEvent,
+    botSpeed, changeBotSpeed,
     loading: false, isMyTurn: game.gameState.current_player_id === session?.playerId, loadMyHand: async () => {},
     localPlay: (card: Card, color?: CardColor) => setGame(g => localAction(g, session!.playerId, 'play', card.id, color)),
     localDraw: () => setGame(g => localAction(g, session!.playerId, 'draw')),
