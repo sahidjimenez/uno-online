@@ -17,17 +17,17 @@ function Editor({ initial, onClose, onSave }: { initial: CharacterAppearance; on
   const dialog = useRef<HTMLDialogElement>(null)
   useEffect(() => { const element = dialog.current!; element.showModal(); return () => element.close() }, [])
   return createPortal(<dialog ref={dialog} className="character-dialog" aria-labelledby="character-title" onCancel={onClose}>
-    <header className="character-heading"><div><p>TU ESTILO EN LA MESA</p><h2 id="character-title">Personaliza tu personaje</h2></div><button type="button" onClick={onClose} aria-label="Cerrar personalización">×</button></header>
+    <header className="character-heading"><div><h2 id="character-title">Personaliza tu personaje</h2><p>Tu estilo en la mesa</p></div><button type="button" onClick={onClose} aria-label="Cerrar personalización">×</button></header>
     <div className="character-editor-body">
-      <div className="character-preview-panel"><span className="character-preview-tag">VISTA PREVIA · 3D</span><Suspense fallback={<div className="character-preview-loading" role="status">Preparando tu personaje…</div>}><CharacterPreview appearance={draft} /></Suspense><p>Un lugar en la mesa. Un estilo propio.</p></div>
+      <div className="character-preview-panel"><span className="character-preview-tag">VISTA PREVIA · 3D</span><Suspense fallback={<div className="character-preview-loading" role="status">Preparando tu personaje…</div>}><CharacterPreview appearance={draft} /></Suspense></div>
       <div className="character-options">
         <fieldset className="character-gender"><legend>Personaje</legend><div>{(['man', 'woman'] as const).map(gender => <label key={gender} className={draft.gender === gender ? 'is-selected' : ''}>
-          <input type="radio" name="character-gender" value={gender} checked={draft.gender === gender} onChange={() => setDraft(value => ({ ...value, gender }))} />{gender === 'man' ? 'Hombre' : 'Mujer'}
+          <input type="radio" name="character-gender" value={gender} checked={draft.gender === gender} onChange={() => setDraft(value => ({ ...value, gender, hairstyle: gender === 'woman' ? 'long' : 'quiff' }))} />{gender === 'man' ? 'Hombre' : 'Mujer'}
         </label>)}</div></fieldset>
         <fieldset className="character-gender character-hairstyles"><legend>Peinado</legend><div>{HAIRSTYLES.map(style => <label key={style.id} className={draft.hairstyle === style.id ? 'is-selected' : ''}>
           <input type="radio" name="character-hairstyle" aria-label={`Peinado: ${style.name}`} value={style.id} checked={draft.hairstyle === style.id} onChange={() => setDraft(value => ({ ...value, hairstyle: style.id }))} />{style.name}
         </label>)}</div></fieldset>
-        {FIELDS.map(({ key, label, colors }) => <fieldset key={key} className="character-colors"><legend>{label} <span>{colors.find(color => color.id === draft[key])?.name}</span></legend><div>
+        {FIELDS.map(({ key, label, colors }) => <fieldset key={key} className="character-colors"><legend>{label}</legend><div>
           {colors.map(color => <label key={color.id} className={draft[key] === color.id ? 'is-selected' : ''} title={color.name}>
             <input type="radio" name={`character-${key}`} value={color.id} aria-label={`${label}: ${color.name}`} checked={draft[key] === color.id} onChange={() => setDraft(value => ({ ...value, [key]: color.id }))} />
             <span className="character-swatch" style={{ background: color.hex, color: color.id === 'white' || color.id === 'blonde' ? '#142b25' : '#fff' }}>{draft[key] === color.id ? '✓' : ''}</span><span>{color.name}</span>

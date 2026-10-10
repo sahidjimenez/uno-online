@@ -18,18 +18,18 @@ export default function CharacterPreview({ appearance }: { appearance: Character
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping
     renderer.shadowMap.enabled = true
-    renderer.shadowMap.type = THREE.PCFShadowMap
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap
     container.appendChild(renderer.domElement)
     const scene = new THREE.Scene()
     const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 20)
-    camera.position.set(0, 1.75, 5.7); camera.lookAt(0, 1.38, 0)
+    camera.position.set(0, 1.65, 5.05); camera.lookAt(0, 1.38, 0)
     scene.add(new THREE.HemisphereLight('#ffffff', '#547467', 2))
-    const light = new THREE.DirectionalLight('#fff1dc', 3); light.position.set(-3, 5, 4)
+    const light = new THREE.DirectionalLight('#fff1dc', 2.4); light.position.set(-3, 5, 4)
     light.castShadow = true; light.shadow.mapSize.set(1024, 1024)
     light.shadow.camera.left = -2; light.shadow.camera.right = 2
     light.shadow.camera.top = 4; light.shadow.camera.bottom = -1
     light.shadow.normalBias = 0.025; scene.add(light)
-    const rim = new THREE.DirectionalLight('#b2ffe3', 2); rim.position.set(2, 3, -3); scene.add(rim)
+    const rim = new THREE.DirectionalLight('#b2ffe3', 1.3); rim.position.set(2, 3, -3); scene.add(rim)
     const character = createCharacter(initial.current); model.current = character
     character.group.rotation.y = Math.PI / 9; scene.add(character.group)
     const geometry = new THREE.CylinderGeometry(0.62, 0.68, 0.07, 48)
@@ -53,6 +53,10 @@ export default function CharacterPreview({ appearance }: { appearance: Character
   return <div className="character-preview">
     <div ref={host} className="character-preview-canvas" role="img" aria-label={`Vista previa 3D de tu personaje: ${appearance.gender === 'woman' ? 'mujer' : 'hombre'}`} />
     {failed ? <p className="character-preview-fallback" role="status">Vista 3D no disponible. Puedes elegir los colores y guardar tu personaje.</p>
-      : <label className="character-rotate">Girar personaje<input type="range" min="-180" max="180" value={rotation} onChange={event => setRotation(Number(event.target.value))} /></label>}
+      : <div className="character-rotate">
+        <button type="button" aria-label="Girar personaje a la izquierda" onClick={() => setRotation(value => (value - 30 + 540) % 360 - 180)}>‹</button>
+        <label>Girar personaje<input type="range" min="-180" max="180" value={rotation} onChange={event => setRotation(Number(event.target.value))} /></label>
+        <button type="button" aria-label="Girar personaje a la derecha" onClick={() => setRotation(value => (value + 30 + 540) % 360 - 180)}>›</button>
+      </div>}
   </div>
 }

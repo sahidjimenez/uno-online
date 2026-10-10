@@ -7,6 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      includeAssets: ['models/quaternius/*.glb', 'models/quaternius/*LICENSE.txt'],
       manifest: {
         name: 'NEXO',
         short_name: 'NEXO',
