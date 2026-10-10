@@ -70,13 +70,34 @@ export function createCharacter(appearance: CharacterAppearance, seated = false)
         -0.015 + Math.cos(around) * Math.sin(angle) * 0.225, 0.079, 0.074, 0.079, hair))
     }
   }
+  let poseArm = (_amount: number) => {}
+  let playingHand: THREE.Mesh
   for (const side of [-1, 1]) {
     limb([side * 0.27, shoulderY - 0.08, 0], [side * 0.385, shoulderY - 0.31, 0.01], 0.115, shirt)
     const elbow: [number, number, number] = [side * 0.41, shoulderY - 0.47, 0.055]
-    limb([side * 0.37, shoulderY - 0.24, 0], elbow, 0.087, skin)
+    const upperArm = limb([side * 0.37, shoulderY - 0.24, 0], elbow, 0.087, skin)
     const wrist: [number, number, number] = [side * 0.39, seated ? shoulderY - 0.4 : shoulderY - 0.78, seated ? 0.38 : 0.06]
-    limb(elbow, wrist, 0.076, skin)
-    ellipsoid(wrist[0], wrist[1] - (seated ? 0 : 0.045), wrist[2] + (seated ? 0.065 : 0), 0.083, seated ? 0.058 : 0.108, seated ? 0.108 : 0.059, skin)
+    const forearm = limb(elbow, wrist, 0.076, skin)
+    const hand = ellipsoid(wrist[0], wrist[1] - (seated ? 0 : 0.045), wrist[2] + (seated ? 0.065 : 0), 0.083, seated ? 0.058 : 0.108, seated ? 0.108 : 0.059, skin)
+    if (side === 1) {
+      playingHand = hand
+      const shoulder = new THREE.Vector3(0.37, shoulderY - 0.24, 0)
+      const restElbow = new THREE.Vector3(...elbow), restWrist = new THREE.Vector3(...wrist)
+      const upperLength = shoulder.distanceTo(restElbow), lowerLength = restElbow.distanceTo(restWrist)
+      const fit = (mesh: THREE.Mesh, a: THREE.Vector3, b: THREE.Vector3, length: number) => {
+        mesh.position.copy(a).add(b).multiplyScalar(0.5)
+        mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize())
+        mesh.scale.y = a.distanceTo(b) / length
+      }
+      poseArm = amount => {
+        if (!seated) return
+        const t = THREE.MathUtils.clamp(amount, 0, 1)
+        const e = restElbow.clone().lerp(new THREE.Vector3(0.34, shoulderY - 0.1, 0.35), t)
+        const w = restWrist.clone().lerp(new THREE.Vector3(0.12, shoulderY - 0.08, 0.78), t)
+        fit(upperArm, shoulder, e, upperLength); fit(forearm, e, w, lowerLength)
+        hand.position.copy(w); hand.position.z += 0.065
+      }
+    }
     const kneeZ = seated ? 0.52 : 0
     const kneeY = seated ? 0.79 : 0.72
     limb([side * 0.145, hipY - 0.035, 0], [side * 0.15, kneeY, kneeZ], 0.135, pants)
@@ -99,5 +120,5 @@ export function createCharacter(appearance: CharacterAppearance, seated = false)
     body.scale.x = next.gender === 'woman' ? 0.94 : 1
   }
   update(appearance)
-  return { group, update, dispose: () => resources.forEach(resource => resource.dispose()) }
+  return { group, update, poseArm, handPosition: () => playingHand.getWorldPosition(new THREE.Vector3()), dispose: () => resources.forEach(resource => resource.dispose()) }
 }

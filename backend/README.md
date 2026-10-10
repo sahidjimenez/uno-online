@@ -198,3 +198,6 @@ reproducir el sonido (si está activado).
 
 Pruebas de migraciones sin conexión al servidor: ejecutar `npm test` en `backend`.
 Usan PostgreSQL embebido (PGlite) y no modifican la base de datos de Supabase.
+
+## Recuperación y jugadas atómicas
+Aplicar 011_atomic_game_actions.sql después de 009 y 010, y volver a publicar play-card y draw-card. La función confirma cartas, turno y evento en una transacción y rechaza versiones repetidas. El cliente conserva la mesa ante fallos, sincroniza cada 8 segundos y al reconectar, y limita las solicitudes a 12 segundos sin repetir jugadas automáticamente.

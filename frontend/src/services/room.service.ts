@@ -82,7 +82,8 @@ export async function findPublicRoom(playerName: string): Promise<LocalSession &
 // Reconectar con la sesión guardada
 export async function reconnect(code: string): Promise<LocalSession | null> {
   const { data, error } = await supabase.rpc('reconnect_player', { p_code: code.toUpperCase() })
-  if (error || !data) return null
+  if (error) throw new Error(error.message)
+  if (!data) return null
 
   const session: LocalSession = {
     playerId: data.player_id,

@@ -11,6 +11,7 @@ import { ColorPicker } from '../components/ColorPicker'
 import { EffectOverlay } from '../components/EffectOverlay'
 import { canPlay, canWinWith } from '../engine/rules'
 import { supabase } from '../lib/supabase'
+import { requestDeadline } from '../lib/requestDeadline'
 import type { LocalSession, Card, CardColor, Player } from '../types'
 import '../components/Room3D.css'
 import { CharacterCustomizer } from '../components/CharacterCustomizer'
@@ -44,15 +45,35 @@ function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeo
   const [unoAcknowledged, setUnoAcknowledged] = useState<string | null>(null)
   const unoPending = useRef(false)
   const seenPenalty = useRef<string | null>(null)
-  const { soundEnabled, toggleSound } = useEffectSounds(tableEffect)
+  const { soundEnabled, toggleSound } = useEffectSounds(tableEffect, game.cardPlay?.id)
   const previousState = useRef(gameState)
   const [prevHandIds,      setPrevHandIds]       = useState<Set<string>>(new Set())
   const [winBlockMsg,      setWinBlockMsg]       = useState<string | null>(null)
+  const [actionPending, setActionPending] = useState(false)
+  const actionLock = useRef(false)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const online = 'refreshGame' in game ? game : null
+  const blocked = actionPending || !!online?.syncError
+  async function performAction(name: string, body: Record<string, unknown>): Promise<boolean> {
+    if (actionLock.current || online?.syncError) return false
+    actionLock.current = true; setActionPending(true); setActionError(null)
+    try {
+      const result = await requestDeadline(signal => supabase.functions.invoke(name, { body, signal }))
+      if (result.error || result.data?.error) throw new Error('La jugada no se pudo confirmar. Actualizamos la mesa antes de continuar.')
+      if (online && !await online.refreshGame()) throw new Error('La jugada se envió, pero falta actualizar la mesa. Pulsa Reconectar antes de continuar.')
+      return true
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'No pudimos confirmar la jugada.')
+      await online?.refreshGame()
+      return false
+    } finally { actionLock.current = false; setActionPending(false) }
+  }
 
   // Navegar a GameOver cuando haya un ganador
   useEffect(() => {
     if (gameState?.winner_id) {
-      onFinish(gameState.winner_id, players)
+      const timer = setTimeout(() => onFinish(gameState.winner_id!, players), 1400)
+      return () => clearTimeout(timer)
     }
   }, [gameState?.winner_id]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -88,7 +109,7 @@ function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeo
   }, [tableEffect])
 
   async function playCard(card: Card, chosenColor?: CardColor) {
-    if (!isMyTurn || !gameState) return
+    if (!isMyTurn || !gameState || blocked || actionLock.current) return
     if (!canPlay(card, gameState)) return
 
     // Regla europea: solo se puede ganar con carta de número
@@ -104,26 +125,22 @@ function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeo
     }
 
     if (localPlay) { localPlay(card, chosenColor); return }
-    await supabase.functions.invoke('play-card', {
-      body: {
+    await performAction('play-card', {
         room_id:      session.roomId,
         player_id:    session.playerId,
         card_id:      card.id,
         chosen_color: chosenColor ?? null,
         version:      gameState.version,
-      },
     })
   }
 
   async function drawCard() {
-    if (!isMyTurn || !gameState) return
+    if (!isMyTurn || !gameState || blocked || actionLock.current) return
     if (localDraw) { localDraw(); return }
-    await supabase.functions.invoke('draw-card', {
-      body: {
+    await performAction('draw-card', {
         room_id:   session.roomId,
         player_id: session.playerId,
         version:   gameState.version,
-      },
     })
   }
 
@@ -134,10 +151,7 @@ function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeo
     try {
       if (localUno) localUno()
       else {
-        const { error } = await supabase.functions.invoke('call-uno', {
-          body: { room_id: session.roomId, player_id: session.playerId },
-        })
-        if (error) throw error
+        if (!await performAction('call-uno', { room_id: session.roomId, player_id: session.playerId })) throw new Error('Aviso no confirmado')
       }
     } catch {
       setUnoAcknowledged(null)
@@ -148,9 +162,7 @@ function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeo
 
   async function catchUno(accusedId: string) {
     if (localCatch) { localCatch(accusedId); return }
-    await supabase.functions.invoke('penalize-uno', {
-      body: { room_id: session.roomId, accuser_id: session.playerId, accused_id: accusedId },
-    })
+    await performAction('penalize-uno', { room_id: session.roomId, accuser_id: session.playerId, accused_id: accusedId })
   }
 
   async function handleReverseCounter() {
@@ -161,7 +173,9 @@ function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeo
 
   if (loading || !gameState) {
     return (
-      <StatusScreen loading title="Preparando la mesa" description="Estamos repartiendo las cartas…" />
+      <StatusScreen loading={loading && !online?.syncError} title={online?.syncError ? 'No pudimos actualizar la mesa' : 'Preparando la mesa'} description={online?.syncError ?? 'Estamos repartiendo las cartas…'}>
+        {online && <button disabled={online.syncing} className="nexo-primary-button" onClick={() => void online.refreshGame()}>{online.syncing ? 'Conectando…' : 'Reconectar'}</button>}
+      </StatusScreen>
     )
   }
 
@@ -170,8 +184,12 @@ function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeo
 
   return (
     <div className={`game-room ${room3D ? 'immersive-room' : ''} ${tableEffect?.type === 'reverse' ? 'table-reversing' : ''}`}>
+      {online && <div className="game-connection-status" role="status">
+        <span>{actionPending ? 'Confirmando jugada…' : online.syncError ?? actionError ?? 'Mesa conectada'}</span>
+        <button disabled={online.syncing || actionPending} onClick={async () => { if (await online.refreshGame()) setActionError(null) }}>{online.syncing ? 'Actualizando…' : 'Reconectar'}</button>
+      </div>}
       {room3D && <Suspense fallback={<div className="room3d-loading" role="status">Preparando la sala 3D…</div>}>
-        <Room3D players={players} gameState={gameState} playerId={session.playerId} appearance={appearance} onFallback={() => setRoom3D(false)} />
+        <Room3D players={players} gameState={gameState} playerId={session.playerId} appearance={appearance} cardPlay={game.cardPlay} onFallback={() => setRoom3D(false)} />
       </Suspense>}
       <header className="table-header">
         <div className="table-brand"><strong>NEXO</strong><span>Mesa 3D</span></div>
@@ -226,7 +244,7 @@ function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeo
           <div className={`turn-orbit ${gameState.direction === -1 ? 'is-reversed' : ''}`} aria-label={gameState.direction === 1 ? 'Sentido horario' : 'Sentido antihorario'}>↻</div>
           <div className="table-piles">
             <div className="pile-column">
-              <button onClick={drawCard} disabled={!isMyTurn} className="draw-deck" aria-label="Robar carta">
+              <button onClick={drawCard} disabled={!isMyTurn || blocked} className="draw-deck" aria-label="Robar carta">
                 <UnoCard color="wild" type="wild" faceDown size="lg" />
               </button>
               <span className="pile-caption">ROBAR · {gameState.draw_pile_count}</span>
@@ -254,7 +272,7 @@ function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeo
             <strong style={{ color: `var(--card-${gameState.current_color})` }}>{colorNames[gameState.current_color ?? 'wild']}</strong>
             <span>{gameState.direction === 1 ? '↻ Horario' : '↺ Antihorario'}</span>
             {gameState.draw_stack > 0 && <strong>+{gameState.draw_stack} acumulado</strong>}
-            <button onClick={drawCard} disabled={!isMyTurn}>Robar {gameState.draw_stack || 1} {gameState.draw_stack > 1 ? 'cartas' : 'carta'}<small>{gameState.draw_pile_count} en el mazo</small></button>
+            <button onClick={drawCard} disabled={!isMyTurn || blocked}>Robar {gameState.draw_stack || 1} {gameState.draw_stack > 1 ? 'cartas' : 'carta'}<small>{gameState.draw_pile_count} en el mazo</small></button>
           </div>
         </>}
 
@@ -271,9 +289,9 @@ function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeo
                   '--fan-lift': `${Math.abs(offset) * Math.min(5, 30 / Math.max(myHand.length, 1))}px`,
                 } as CSSProperties}>
                   <UnoCard color={card.card_color} type={card.card_type} size="lg"
-                    playable={isMyTurn && canPlay(card, gameState)}
+                    playable={isMyTurn && !blocked && canPlay(card, gameState)}
                     animate={!prevHandIds.has(card.id) ? 'draw' : undefined}
-                    onClick={isMyTurn && canPlay(card, gameState) ? () => playCard(card) : undefined} />
+                    onClick={isMyTurn && !blocked && canPlay(card, gameState) ? () => playCard(card) : undefined} />
                 </div>
               })}
             </div>

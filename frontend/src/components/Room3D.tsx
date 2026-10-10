@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
-import type { GameState, Player } from '../types'
+import type { GameEvent, GameState, Player } from '../types'
 import { canWalkTo, TABLE_RADIUS } from '../engine/roomNavigation'
 import { createCharacter } from '../engine/characterModel'
 import { characterForSeat, type CharacterAppearance } from '../lib/character'
@@ -10,15 +10,17 @@ interface Props {
   gameState: GameState
   playerId: string
   appearance: CharacterAppearance
+  cardPlay: GameEvent | null
   onFallback: () => void
 }
 const COLORS: Record<string, string> = { red: '#e77969', blue: '#639fc1', green: '#4aa993', yellow: '#d9b766', wild: '#555073' }
 const LABELS: Record<string, string> = { skip: '⊘', reverse: '⇄', draw2: '+2', wild: '◇', wild4: '+4' }
 
-export default function Room3D({ players, gameState, playerId, appearance, onFallback }: Props) {
+export default function Room3D({ players, gameState, playerId, appearance, cardPlay, onFallback }: Props) {
   const host = useRef<HTMLDivElement>(null)
   const input = useRef(new Set<string>())
-  const controller = useRef<{ reset: (walk: boolean) => void; update: (players: Player[], state: GameState, appearance: CharacterAppearance) => void } | null>(null)
+  const controller = useRef<{ reset: (walk: boolean) => void; update: (players: Player[], state: GameState, appearance: CharacterAppearance, pendingPlay: boolean) => void; play: (event: GameEvent) => void } | null>(null)
+  const seenCard = useRef(cardPlay?.id)
   const [walking, setWalking] = useState(false)
   const [failed, setFailed] = useState(false)
 
@@ -119,6 +121,28 @@ export default function Room3D({ players, gameState, playerId, appearance, onFal
     cylinder(1.05, 0.02, glow, 0, 5, 0)
 
     const dynamic = new THREE.Group(); scene.add(dynamic)
+    const handPositions = new Map<string, THREE.Vector3>()
+    const characters = new Map<string, ReturnType<typeof createCharacter>>()
+    const flights: { mesh: THREE.Mesh; playerId: string; start: THREE.Vector3; released: boolean; landed: boolean; color: string; type: string; version: number; elapsed: number; dispose: () => void }[] = []
+    let displayedVersion = -1
+    const pile: { mesh: THREE.Mesh; dispose: () => void }[] = []
+    function placeOnPile(color: string, type: string, version: number) {
+      if (version < displayedVersion) return
+      displayedVersion = version
+      const map = texture(ctx => {
+        ctx.fillStyle = '#f0eee0'; ctx.fillRect(0, 0, 256, 384)
+        ctx.fillStyle = COLORS[color]; ctx.fillRect(8, 8, 240, 368)
+        ctx.strokeStyle = '#ffffff77'; ctx.lineWidth = 3; ctx.strokeRect(28, 28, 200, 328)
+        ctx.fillStyle = '#fff9ed'; ctx.textAlign = 'center'; ctx.font = 'bold 96px sans-serif'
+        ctx.fillText(LABELS[type] ?? type, 128, 220)
+        ctx.font = '30px sans-serif'; ctx.fillText(LABELS[type] ?? type, 53, 65)
+      }, 256, 384)
+      const mat = new THREE.MeshBasicMaterial({ map })
+      if (pile.length === 2) pile.shift()!.dispose()
+      if (pile[0]) { pile[0].mesh.position.y = 1.548; pile[0].mesh.rotation.z = 0.05 }
+      const mesh = flatCard(mat, 0.45, 1.56, 0, -0.12, scene)
+      pile.push({ mesh, dispose: () => { scene.remove(mesh); mat.dispose(); map.dispose() } })
+    }
     const labels: THREE.Sprite[] = []
     const dynamicResources: { dispose: () => void }[] = []
     function clearDynamic() { dynamic.clear(); labels.length = 0; dynamicResources.splice(0).forEach(resource => resource.dispose()) }
@@ -133,13 +157,29 @@ export default function Room3D({ players, gameState, playerId, appearance, onFal
     const backMat = new THREE.MeshBasicMaterial({ map: backMap }); resources.push(backMat)
     function flatCard(mat: THREE.Material, x: number, y: number, z: number, rotation = 0, parent: THREE.Object3D = dynamic) {
       const card = new THREE.Mesh(cardGeometry, mat); card.rotation.set(-Math.PI / 2, 0, rotation); card.position.set(x, y, z); parent.add(card)
+      return card
+    }
+    function play(event: GameEvent) {
+      const from = handPositions.get(event.player_id ?? '')
+      const card = event.payload.card as { color?: string; type?: string } | undefined
+      if (!from || !card?.type || !card.color || !COLORS[card.color]) return
+      const map = texture(ctx => {
+        ctx.fillStyle = '#f0eee0'; ctx.fillRect(0, 0, 256, 384)
+        ctx.fillStyle = COLORS[card.color!]; ctx.fillRect(8, 8, 240, 368)
+        ctx.fillStyle = '#fff9ed'; ctx.textAlign = 'center'; ctx.font = 'bold 96px sans-serif'
+        ctx.fillText(LABELS[card.type!] ?? card.type!, 128, 220)
+      }, 256, 384)
+      const mat = new THREE.MeshBasicMaterial({ map, side: THREE.DoubleSide })
+      const mesh = flatCard(mat, from.x, from.y, from.z, 0, scene)
+      flights.push({ mesh, playerId: event.player_id!, start: from.clone(), released: false, landed: false, color: card.color, type: card.type, version: event.version ?? displayedVersion + 1, elapsed: 0, dispose: () => { scene.remove(mesh); mat.dispose(); map.dispose() } })
     }
     let seatCount = 0
     const chairGeometry = new THREE.BoxGeometry(0.78, 0.15, 0.8), backGeometry = new THREE.BoxGeometry(0.8, 0.95, 0.14), legGeometry = new THREE.BoxGeometry(0.07, 0.66, 0.07)
     resources.push(chairGeometry, backGeometry, legGeometry)
     const chairMat = material('#487b70'), activeMat = material('#a9e6d6')
-    function update(roster: Player[], state: GameState, myAppearance: CharacterAppearance) {
+    function update(roster: Player[], state: GameState, myAppearance: CharacterAppearance, pendingPlay: boolean) {
       clearDynamic()
+      handPositions.clear(); characters.clear()
       const sorted = [...roster].sort((a, b) => a.seat_order - b.seat_order)
       const myIndex = sorted.findIndex(p => p.id === playerId)
       const ordered = myIndex < 0 ? sorted : [...sorted.slice(myIndex), ...sorted.slice(0, myIndex)]
@@ -154,24 +194,19 @@ export default function Room3D({ players, gameState, playerId, appearance, onFal
         const character = createCharacter(player.id === playerId ? myAppearance : characterForSeat(player.seat_order), true)
         character.group.rotation.y = Math.PI
         seat.add(character.group); dynamicResources.push(character)
+        characters.set(player.id, character)
         const map = sign(player.name + (player.id === playerId && player.name !== 'Tú' ? ' · Tú' : ''), `${player.hand_count ?? 0} cartas${player.id === state.current_player_id ? ' · SU TURNO' : ''}`, player.id === state.current_player_id ? '#a9ffd9' : '#d1cfb6')
         const labelMat = new THREE.SpriteMaterial({ map, depthTest: true }); dynamicResources.push(map, labelMat)
         const label = new THREE.Sprite(labelMat); label.position.set(seat.position.x, 2.95, seat.position.z); dynamic.add(label); labels.push(label)
+        label.userData.playerId = player.id
         const hand = new THREE.Group(); hand.position.set(Math.sin(angle) * 1.98, 1.52, Math.cos(angle) * 1.98); hand.rotation.y = angle; dynamic.add(hand)
+        handPositions.set(player.id, hand.position.clone())
         for (let c = 0; c < Math.min(player.hand_count ?? 0, 7); c++) flatCard(backMat, (c - (Math.min(player.hand_count ?? 0, 7) - 1) / 2) * 0.13, c * 0.003, 0, (c - 3) * 0.05, hand)
       })
       for (let i = 0; i < Math.min(state.draw_pile_count, 8); i++) flatCard(backMat, -0.45, 1.53 + i * 0.012, 0)
-      if (state.top_card_type) {
-        const map = texture(ctx => {
-          ctx.fillStyle = '#f0eee0'; ctx.fillRect(0, 0, 256, 384)
-          ctx.fillStyle = COLORS[state.top_card_color ?? 'wild']; ctx.fillRect(8, 8, 240, 368)
-          ctx.strokeStyle = '#ffffff77'; ctx.lineWidth = 3; ctx.strokeRect(28, 28, 200, 328)
-          ctx.fillStyle = '#fff9ed'; ctx.textAlign = 'center'; ctx.font = 'bold 96px sans-serif'
-          ctx.fillText(LABELS[state.top_card_type!] ?? state.top_card_type!, 128, 220)
-          ctx.font = '30px sans-serif'; ctx.fillText(LABELS[state.top_card_type!] ?? state.top_card_type!, 53, 65)
-        }, 256, 384)
-        const mat = new THREE.MeshBasicMaterial({ map }); dynamicResources.push(map, mat)
-        flatCard(mat, 0.45, 1.56, 0, -0.12)
+      // Keep the discard pile independent of roster/hand rebuilds and in-flight cards.
+      if (!pendingPlay && flights.length === 0 && state.top_card_type && state.version > displayedVersion) {
+        placeOnPile(state.top_card_color ?? 'wild', state.top_card_type, state.version)
       }
       const statusMap = sign(state.direction === 1 ? '↻' : '↺', state.draw_stack ? `+${state.draw_stack} acumulado` : 'N E X O', COLORS[state.current_color ?? 'wild'])
       const statusMat = new THREE.MeshBasicMaterial({ map: statusMap }); dynamicResources.push(statusMap, statusMat)
@@ -186,7 +221,7 @@ export default function Room3D({ players, gameState, playerId, appearance, onFal
       const euler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ'); yaw = euler.y; pitch = euler.x
     }
     reset(false)
-    controller.current = { reset, update }
+    controller.current = { reset, update, play }
     const resize = () => {
       const { width, height } = container.getBoundingClientRect()
       renderer.setSize(width, height); camera.aspect = width / Math.max(height, 1)
@@ -222,6 +257,30 @@ export default function Room3D({ players, gameState, playerId, appearance, onFal
     renderer.setAnimationLoop(time => {
       const dt = Math.min((time - last) / 1000, 0.05); last = time
       if (document.hidden) return
+      for (let i = flights.length - 1; i >= 0; i--) {
+        const flight = flights[i]; flight.elapsed += dt
+        const t = Math.min(1, flight.elapsed / 1.25)
+        const character = characters.get(flight.playerId)
+        const reach = t < 0.4 ? Math.sin(t / 0.4 * Math.PI / 2) : t < 0.65 ? 1 : Math.max(0, (1 - t) / 0.35)
+        character?.poseArm(reach)
+        if (t < 0.4 && character) {
+          flight.mesh.position.copy(character.handPosition()); flight.mesh.position.y += 0.06
+        } else {
+          if (!flight.released) {
+            if (character) { character.poseArm(1); flight.start.copy(character.handPosition()); flight.start.y += 0.06 }
+            flight.released = true
+          }
+          const slide = Math.min(1, (t - 0.4) / 0.45), eased = slide * slide * (3 - 2 * slide)
+          flight.mesh.position.lerpVectors(flight.start, new THREE.Vector3(0.45, 1.56, 0), eased)
+          flight.mesh.position.y += Math.sin(Math.PI * slide) * 0.35
+          flight.mesh.rotation.set(-Math.PI / 2 + Math.sin(Math.PI * slide) * 0.25, 0, -0.12 * eased)
+        }
+        if (t >= 0.85 && !flight.landed) {
+          placeOnPile(flight.color, flight.type, flight.version)
+          flight.landed = true; flight.mesh.visible = false
+        }
+        if (t === 1) { flight.dispose(); flights.splice(i, 1) }
+      }
       const pressed = (...codes: string[]) => codes.some(code => input.current.has(code))
       const vertical = Number(pressed('Space')) - Number(pressed('ShiftLeft', 'ShiftRight'))
       camera.position.y = THREE.MathUtils.clamp(camera.position.y + vertical * dt * 2, 1.2, 5.8)
@@ -236,6 +295,7 @@ export default function Room3D({ players, gameState, playerId, appearance, onFal
       }
       camera.rotation.set(pitch, yaw, 0, 'YXZ')
       for (const label of labels) {
+        label.visible = !flights.some(flight => flight.playerId === label.userData.playerId)
         const scale = Math.min(1, camera.position.distanceTo(label.position) / 6)
         label.scale.set(1.45 * scale, 0.725 * scale, 1)
       }
@@ -247,11 +307,15 @@ export default function Room3D({ players, gameState, playerId, appearance, onFal
       canvas.removeEventListener('pointerup', up); canvas.removeEventListener('pointercancel', up); canvas.removeEventListener('webglcontextlost', lostContext)
       container.removeEventListener('keydown', keydown); container.removeEventListener('blur', clearInput)
       window.removeEventListener('keyup', keyup); window.removeEventListener('blur', clearInput); document.removeEventListener('visibilitychange', clearInput)
-      clearDynamic(); resources.forEach(resource => resource.dispose()); light.shadow.dispose(); renderer.dispose(); canvas.remove()
+      flights.forEach(flight => flight.dispose()); pile.forEach(card => card.dispose()); clearDynamic(); resources.forEach(resource => resource.dispose()); light.shadow.dispose(); renderer.dispose(); canvas.remove()
     }
   }, [playerId])
 
-  useEffect(() => { controller.current?.update(players, gameState, appearance) }, [players, gameState, appearance])
+  useEffect(() => { controller.current?.update(players, gameState, appearance, !!cardPlay && seenCard.current !== cardPlay.id) }, [players, gameState, appearance, cardPlay])
+  useEffect(() => {
+    if (!cardPlay || seenCard.current === cardPlay.id) return
+    seenCard.current = cardPlay.id; controller.current?.play(cardPlay)
+  }, [cardPlay])
 
   function setMode(walk: boolean) { setWalking(walk); controller.current?.reset(walk); host.current?.focus() }
   return <>

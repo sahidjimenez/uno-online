@@ -5,6 +5,18 @@ import type { Card, LocalSession } from '../types'
 const session: LocalSession = { playerId: 'me', roomId: 'local-room', roomCode: 'LOCAL', name: 'Prueba' }
 function card(id: string, type: Card['card_type']): Card { return { id, card_type: type, card_color: 'red', player_id: 'me', room_id: session.roomId } }
 describe('local game', () => {
+  it('keeps the played card cue when an immediate last-card announcement follows', () => {
+    const game = createLocalGame(session)
+    game.gameState.current_color = 'red'
+    game.hands.me = [card('seven', '7'), card('eight', '8')]
+    const played = localAction(game, 'me', 'play', 'seven')
+    expect(played.cardPlay?.player_id).toBe('me')
+    expect(played.cardPlay?.payload.card).toEqual({ color: 'red', type: '7' })
+    const announced = localAction(played, 'me', 'uno')
+    expect(announced.lastEvent?.type).toBe('uno_called')
+    expect(announced.cardPlay).toBe(played.cardPlay)
+    expect(localAction(announced, 'me', 'play', 'missing').cardPlay).toBe(played.cardPlay)
+  })
   it('deals a complete deck without a server', () => {
     const game = createLocalGame(session)
     expect(game.players).toHaveLength(4)

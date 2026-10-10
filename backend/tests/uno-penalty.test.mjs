@@ -7,7 +7,7 @@ let db
 before(async () => {
   db = new PGlite()
   await db.exec('CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;')
-  for (const name of ['001_schema.sql', '009_uno_penalty_event.sql', '010_automatic_uno_penalty.sql']) {
+  for (const name of ['001_schema.sql', '009_uno_penalty_event.sql', '010_automatic_uno_penalty.sql', '011_atomic_game_actions.sql']) {
     await db.exec(await readFile(new URL(`../supabase/migrations/${name}`, import.meta.url), 'utf8'))
   }
 })
@@ -62,4 +62,40 @@ test('a finished game never applies a next-turn penalty', async () => {
   const { room, players } = await fixture()
   await db.query("UPDATE game_state SET status='finished', current_player_id=$2 WHERE room_id=$1", [room, players[1]])
   assert.equal(await handCount(players[1]), 1)
+})
+async function commitDraw(room, player, version, type = 'card_drawn') {
+  return db.query('SELECT commit_game_action($1,$2,$3,NULL,$4::jsonb,$5::jsonb,$6::jsonb) AS result', [room, player, version,
+    JSON.stringify([{card_color:'red',card_type:'2'}]),
+    JSON.stringify({current_player_id:player,draw_stack:0,draw_pile_count:49}),
+    JSON.stringify({type,payload:{cards_drawn:1}})])
+}
+test('failed event insertion rolls back hand, turn and version together', async () => {
+  const {room,players}=await fixture()
+  await assert.rejects(commitDraw(room,players[0],0,'invalid_event'))
+  assert.equal(await handCount(players[0]),0)
+  assert.equal((await db.query('SELECT version FROM game_state WHERE room_id=$1',[room])).rows[0].version,0)
+})
+test('two submissions for the same version can only deal once', async () => {
+  const {room,players}=await fixture()
+  const results=await Promise.allSettled([commitDraw(room,players[0],0),commitDraw(room,players[0],0)])
+  assert.equal(results.filter(r=>r.status==='fulfilled').length,1)
+  assert.equal(await handCount(players[0]),1)
+  assert.equal((await db.query('SELECT version FROM game_state WHERE room_id=$1',[room])).rows[0].version,1)
+})
+test('atomic play rejects a special winning card without deleting it', async () => {
+  const {room,players}=await fixture()
+  const card=(await db.query("INSERT INTO hands(room_id,player_id,card_color,card_type) VALUES ($1,$2,'red','skip') RETURNING id",[room,players[0]])).rows[0].id
+  await assert.rejects(db.query("SELECT commit_game_action($1,$2,0,$3,'[]','{}','{}')",[room,players[0],card]))
+  assert.equal(await handCount(players[0]),1)
+})
+test('playing a card commits the next turn and its automatic penalty together', async () => {
+  const {room,players}=await fixture()
+  const inserted=await db.query("INSERT INTO hands(room_id,player_id,card_color,card_type) VALUES ($1,$2,'red','7'),($1,$2,'blue','8') RETURNING id",[room,players[0]])
+  const result=await db.query('SELECT commit_game_action($1,$2,0,$3,\'[]\',$4::jsonb,$5::jsonb) AS result',[room,players[0],inserted.rows[0].id,
+    JSON.stringify({current_player_id:players[1],current_color:'red',top_card_color:'red',top_card_type:'7',draw_stack:0}),
+    JSON.stringify({type:'card_played',payload:{card:{color:'red',type:'7'}}})])
+  assert.equal(result.rows[0].result.ok,true)
+  assert.equal(await handCount(players[0]),1)
+  assert.equal(await handCount(players[1]),5)
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM events')).rows[0].n,2)
 })

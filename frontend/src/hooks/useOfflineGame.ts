@@ -11,6 +11,7 @@ export interface LocalGame {
   discard: DeckCard[]
   lastEvent: GameEvent | null
   unoPenalty: GameEvent | null
+  cardPlay: GameEvent | null
 }
 export function createLocalGame(session: LocalSession): LocalGame {
   const deck = shuffle(createDeck())
@@ -23,7 +24,7 @@ export function createLocalGame(session: LocalSession): LocalGame {
   for (const player of players) hands[player.id] = Array.from({ length: 7 }, () => makeCard(deck.pop()!, player.id, session.roomId))
   const start = deck.findIndex(card => /^\d$/.test(card.type))
   const top = deck.splice(start, 1)[0]
-  return { players, hands, deck, discard: [top], lastEvent: null, unoPenalty: null, gameState: {
+  return { players, hands, deck, discard: [top], lastEvent: null, unoPenalty: null, cardPlay: null, gameState: {
     id: 'local-game', room_id: session.roomId, version: 0, status: 'playing', current_player_id: session.playerId,
     direction: 1, current_color: top.color, top_card_color: top.color, top_card_type: top.type,
     draw_stack: 0, draw_pile_count: deck.length, winner_id: null, updated_at: new Date().toISOString(),
@@ -97,6 +98,7 @@ export function localAction(game: LocalGame, actor: string, action: 'play' | 'dr
   next.gameState.draw_pile_count = next.deck.length
   next.gameState.updated_at = new Date().toISOString()
   next.lastEvent = { id: crypto.randomUUID(), room_id: state.room_id, player_id: actor, type: event, payload: {}, version: next.gameState.version, created_at: next.gameState.updated_at }
+  if (action === 'play') next.cardPlay = { ...next.lastEvent, payload: { card: { color: next.gameState.top_card_color, type: next.gameState.top_card_type } } }
   if (penalizedId) next.unoPenalty = { ...next.lastEvent, id: crypto.randomUUID(), type: 'uno_penalty', player_id: penalizedId,
     payload: { accused_id: penalizedId, cards_given: next.hands[penalizedId].length - game.hands[penalizedId].length, automatic: action !== 'catch' } }
   return next
@@ -127,7 +129,7 @@ export function useOfflineGame(session: LocalSession | null) {
     return () => clearTimeout(timer)
   }, [game, session?.playerId, botSpeed])
   return { gameState: game.gameState, players: game.players, myHand: game.hands[session!.playerId], lastEvent: game.lastEvent, unoPenalty: game.unoPenalty,
-    botSpeed, changeBotSpeed,
+    botSpeed, changeBotSpeed, cardPlay: game.cardPlay,
     loading: false, isMyTurn: game.gameState.current_player_id === session?.playerId, loadMyHand: async () => {},
     localPlay: (card: Card, color?: CardColor) => setGame(g => localAction(g, session!.playerId, 'play', card.id, color)),
     localDraw: () => setGame(g => localAction(g, session!.playerId, 'draw')),

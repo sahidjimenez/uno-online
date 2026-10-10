@@ -4,6 +4,17 @@ import { createCharacter } from './characterModel'
 import { DEFAULT_CHARACTER } from '../lib/character'
 
 describe('adult character proportions', () => {
+  it('reaches forward to play and returns the hand to its resting pose', () => {
+    const model = createCharacter(DEFAULT_CHARACTER, true)
+    const rest = model.handPosition()
+    model.poseArm(1)
+    const reached = model.handPosition()
+    expect(reached.z - rest.z).toBeGreaterThan(0.35)
+    expect(reached.y).toBeGreaterThan(rest.y)
+    model.poseArm(0)
+    expect(model.handPosition().distanceTo(rest)).toBeLessThan(0.0001)
+    model.dispose()
+  })
   it('fits standing adults and raises seated heads above the table', () => {
     for (const seated of [false, true]) {
       const model = createCharacter(DEFAULT_CHARACTER, seated)

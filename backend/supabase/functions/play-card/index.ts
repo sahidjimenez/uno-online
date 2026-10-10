@@ -12,6 +12,13 @@ Deno.serve(async (req) => {
 
   const { room_id, player_id, card_id, chosen_color, version } = await req.json()
 
+  const token = req.headers.get('Authorization')?.replace(/^Bearer /i, '')
+  if (!token) return err('No autorizado', 401)
+  const { data: auth, error: authError } = await supabase.auth.getUser(token)
+  if (authError || !auth.user) return err('No autorizado', 401)
+  const { data: owner } = await supabase.from('players').select('id').eq('id', player_id).eq('room_id', room_id).eq('user_id', auth.user.id).single()
+  if (!owner) return err('Jugador no autorizado', 403)
+
   // 1. Cargar estado actual con bloqueo optimista
   const { data: gs } = await supabase
     .from('game_state').select('*').eq('room_id', room_id).single()
@@ -114,53 +121,13 @@ Deno.serve(async (req) => {
   }
   const nextPlayerId = players[nextIdx].id
 
-  // 7. Eliminar carta de la mano
-  await supabase.from('hands').delete().eq('id', card_id)
-
-  // 8. Verificar si ganó (mano vacía)
-  const { count: remaining } = await supabase
-    .from('hands').select('*', { count: 'exact', head: true }).eq('player_id', player_id)
-
-  const won = remaining === 0
-
-  // Resetear has_called_uno si le quedan 2+ cartas (cantó UNO pero luego robó en otro turno)
-  if (!won && (remaining ?? 0) > 1) {
-    await supabase.from('players').update({ has_called_uno: false }).eq('id', player_id)
-  }
-
-  // 9. Actualizar game_state
-  const newVersion = gs.version + 1
-  const { error: stateError } = await supabase.from('game_state').update({
-    version:           newVersion,
-    current_player_id: won ? null : nextPlayerId,
-    direction:         newDirection,
-    current_color:     newColor,
-    top_card_color:    card.card_color,
-    top_card_type:     card.card_type,
-    draw_stack:        won ? 0 : newDrawStack,
-    status:            won ? 'finished' : 'playing',
-    winner_id:         won ? player_id : null,
-    updated_at:        new Date().toISOString(),
-  }).eq('room_id', room_id)
-  if (stateError) return err(stateError.message, 500)
-
-  if (won) {
-    await supabase.from('rooms').update({ status: 'finished', updated_at: new Date().toISOString() }).eq('id', room_id)
-  }
-
-  // 10. Registrar evento
-  await supabase.from('events').insert({
-    room_id, player_id,
-    type:    won ? 'game_finished' : newEventType,
-    version: newVersion,
-    payload: {
-      card:         { color: card.card_color, type: card.card_type },
-      chosen_color: chosen_color ?? null,
-      next_player:  nextPlayerId,
-      draw_stack:   newDrawStack,
-      won,
-    },
+  const { data, error } = await supabase.rpc('commit_game_action', {
+    p_room: room_id, p_player: player_id, p_version: version, p_card: card_id, p_cards: [],
+    p_state: { current_player_id: nextPlayerId, direction: newDirection, current_color: newColor,
+      top_card_color: card.card_color, top_card_type: card.card_type, draw_stack: newDrawStack },
+    p_event: { type: newEventType, payload: { card: { color: card.card_color, type: card.card_type },
+      chosen_color: chosen_color ?? null, next_player: nextPlayerId, draw_stack: newDrawStack } },
   })
-
-  return json({ ok: true, won, next_player_id: nextPlayerId, version: newVersion })
+  if (error) return err(error.message, error.code === '40001' ? 409 : 400)
+  return json({ ...data, next_player_id: nextPlayerId })
 })

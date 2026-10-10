@@ -12,6 +12,13 @@ Deno.serve(async (req) => {
 
   const { room_id, player_id, version } = await req.json()
 
+  const token = req.headers.get('Authorization')?.replace(/^Bearer /i, '')
+  if (!token) return err('No autorizado', 401)
+  const { data: auth, error: authError } = await supabase.auth.getUser(token)
+  if (authError || !auth.user) return err('No autorizado', 401)
+  const { data: owner } = await supabase.from('players').select('id').eq('id', player_id).eq('room_id', room_id).eq('user_id', auth.user.id).single()
+  if (!owner) return err('Jugador no autorizado', 403)
+
   // 1. Validar turno y estado
   const { data: gs } = await supabase
     .from('game_state').select('*').eq('room_id', room_id).single()
@@ -51,30 +58,12 @@ Deno.serve(async (req) => {
     card_type:  c.type,
   }))
 
-  const { error: insertErr } = await supabase.from('hands').insert(newCards)
-  if (insertErr) return err(`Error dando cartas: ${insertErr.message}`, 500)
-
-  // Resetear has_called_uno — al robar ya no vale el UNO cantado
-  await supabase.from('players').update({ has_called_uno: false }).eq('id', player_id)
-
-  // 6. Actualizar game_state
-  const newVersion = gs.version + 1
-  const { error: stateError } = await supabase.from('game_state').update({
-    version:           newVersion,
-    current_player_id: nextPlayer,
-    draw_stack:        0,                    // stack resuelto
-    draw_pile_count:   drawPileCount - cardsToDraw,
-    updated_at:        new Date().toISOString(),
-  }).eq('room_id', room_id)
-  if (stateError) return err(stateError.message, 500)
-
-  // 7. Registrar evento
-  await supabase.from('events').insert({
-    room_id, player_id,
-    type:    resolvingStack ? 'draw_stack_resolved' : 'card_drawn',
-    version: newVersion,
-    payload: { cards_drawn: cardsToDraw, stack_resolved: resolvingStack },
+  const { data, error } = await supabase.rpc('commit_game_action', {
+    p_room: room_id, p_player: player_id, p_version: version, p_card: null, p_cards: newCards,
+    p_state: { current_player_id: nextPlayer, draw_stack: 0, draw_pile_count: drawPileCount - cardsToDraw },
+    p_event: { type: resolvingStack ? 'draw_stack_resolved' : 'card_drawn',
+      payload: { cards_drawn: cardsToDraw, stack_resolved: resolvingStack } },
   })
-
-  return json({ ok: true, cards_drawn: cardsToDraw, next_player_id: nextPlayer, version: newVersion })
+  if (error) return err(error.message, error.code === '40001' ? 409 : 400)
+  return json({ ...data, cards_drawn: cardsToDraw, next_player_id: nextPlayer })
 })

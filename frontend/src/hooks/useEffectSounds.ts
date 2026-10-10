@@ -5,7 +5,7 @@ interface SoundEffect { id: string; type: SoundType; stack: number }
 const STORAGE_KEY = 'nexo-sound-enabled'
 
 // Original synthesized cues: no downloaded audio assets.
-export function useEffectSounds(effect: SoundEffect | null) {
+export function useEffectSounds(effect: SoundEffect | null, cardPlayId?: string) {
   const [enabled, setEnabled] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEY) !== 'false' } catch { return true }
   })
@@ -13,6 +13,7 @@ export function useEffectSounds(effect: SoundEffect | null) {
   const masterRef = useRef<GainNode | null>(null)
   const enabledRef = useRef(enabled)
   const playedRef = useRef<string | null>(null)
+  const playedCardRef = useRef(cardPlayId)
   const unlock = useCallback(() => {
     if (!enabledRef.current || !window.AudioContext) return
     try {
@@ -79,6 +80,29 @@ export function useEffectSounds(effect: SoundEffect | null) {
       tone(220, 220, 0.12, 0.16)
     }
   }, [effect])
+  useEffect(() => {
+    if (!cardPlayId || playedCardRef.current === cardPlayId) return
+    playedCardRef.current = cardPlayId
+    const context = contextRef.current, master = masterRef.current
+    if (!enabledRef.current || !context || !master || context.state !== 'running' || document.hidden) return
+    // A short paper swish followed by the card touching the table.
+    const buffer = context.createBuffer(1, Math.ceil(context.sampleRate * 0.22), context.sampleRate)
+    const samples = buffer.getChannelData(0)
+    for (let i = 0; i < samples.length; i++) samples[i] = Math.random() * 2 - 1
+    const source = context.createBufferSource(), filter = context.createBiquadFilter(), gain = context.createGain()
+    source.buffer = buffer; filter.type = 'bandpass'; filter.frequency.value = 1800; filter.Q.value = 0.7
+    const start = context.currentTime
+    gain.gain.setValueAtTime(0, start); gain.gain.linearRampToValueAtTime(0.45, start + 0.025)
+    gain.gain.exponentialRampToValueAtTime(0.001, start + 0.2)
+    source.connect(filter); filter.connect(gain); gain.connect(master); source.start(start)
+    source.onended = () => { source.disconnect(); filter.disconnect(); gain.disconnect() }
+    const tap = context.createOscillator(), tapGain = context.createGain()
+    tap.type = 'triangle'; tap.frequency.setValueAtTime(180, start + 1.03)
+    tap.frequency.exponentialRampToValueAtTime(65, start + 1.10)
+    tapGain.gain.setValueAtTime(0.3, start + 1.03); tapGain.gain.exponentialRampToValueAtTime(0.001, start + 1.11)
+    tap.connect(tapGain); tapGain.connect(master); tap.start(start + 1.03); tap.stop(start + 1.12)
+    tap.onended = () => { tap.disconnect(); tapGain.disconnect() }
+  }, [cardPlayId])
   const toggle = useCallback(() => {
     const next = !enabledRef.current
     enabledRef.current = next
