@@ -23,7 +23,11 @@ export function buildAssetCharacter(asset: GLTF, hairstyles: GLTF, appearance: C
   const materials: THREE.Material[] = []
   const mixer = new THREE.AnimationMixer(actor)
   const idle = asset.animations.find(clip => clip.name === 'Idle_Neutral')
-  if (idle) { mixer.clipAction(idle).play(); mixer.update(0); mixer.stopAllAction() }
+  if (idle) {
+    const action = mixer.clipAction(idle).play()
+    mixer.update(0)
+    action.paused = true // Stopping the action would restore the exported pose.
+  }
   actor.scale.setScalar(1.5)
   actor.position.y = seated ? -0.43 : 0.005
   actor.traverse(object => {
@@ -59,15 +63,46 @@ export function buildAssetCharacter(asset: GLTF, hairstyles: GLTF, appearance: C
   function pointBone(name: string, direction: THREE.Vector3) {
     const joint = bone(name)
     group.updateMatrixWorld(true)
-    const worldDirection = direction.clone().transformDirection(group.matrixWorld)
-    const worldRotation = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0), worldDirection)
+    const localRotation = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0), direction.clone().normalize())
+    const worldRotation = group.getWorldQuaternion(new THREE.Quaternion()).multiply(localRotation)
     joint.quaternion.copy(joint.parent!.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(worldRotation))
     joint.updateMatrixWorld(true)
   }
   if (seated) for (const side of ['L','R']) {
-    pointBone(`UpperLeg${side}`, new THREE.Vector3(0,-0.16,1))
-    pointBone(`LowerLeg${side}`, new THREE.Vector3(0,-1,0))
-    pointBone(`Foot${side}`, new THREE.Vector3(0,0,1))
+    group.updateMatrixWorld(true)
+    const thigh = bone(`UpperLeg${side}`), shin = bone(`LowerLeg${side}`), foot = bone(`Foot${side}`)
+    const thighRotation = thigh.getWorldQuaternion(new THREE.Quaternion())
+    const shinRotation = shin.getWorldQuaternion(new THREE.Quaternion())
+    const footRotation = foot.getWorldQuaternion(new THREE.Quaternion())
+    const shinLength = shin.getWorldPosition(new THREE.Vector3()).distanceTo(foot.getWorldPosition(new THREE.Vector3()))
+    // Swing from the neutral pose without discarding the rig's roll around each leg.
+    const aimLeg = (joint: THREE.Object3D, neutral: THREE.Quaternion, direction: THREE.Vector3) => {
+      const target = direction.clone().transformDirection(group.matrixWorld)
+      const original = new THREE.Vector3(0, 1, 0).applyQuaternion(neutral)
+      const rotation = new THREE.Quaternion().setFromUnitVectors(original, target).multiply(neutral)
+      joint.quaternion.copy(joint.parent!.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(rotation))
+      joint.updateMatrixWorld(true)
+    }
+    aimLeg(thigh, thighRotation, new THREE.Vector3(0, -0.16, 1))
+    aimLeg(shin, shinRotation, new THREE.Vector3(0, -1, 0))
+    // These assets parent feet to Root, not LowerLeg: move them with the ankles explicitly.
+    const ankle = shin.getWorldPosition(new THREE.Vector3())
+      .addScaledVector(new THREE.Vector3(0, -1, 0).transformDirection(group.matrixWorld), shinLength)
+    foot.position.copy(foot.parent!.worldToLocal(ankle))
+    foot.quaternion.copy(foot.parent!.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(footRotation))
+    foot.updateMatrixWorld(true)
+  }
+  // Find the palm plane from the fingers; the two hands have mirrored bone axes.
+  // Roll the forearm with the hand so the wrist does not take all of the twist.
+  const palmRoll = new Map<string, number>()
+  if (seated) for (const side of ['L', 'R']) {
+    group.updateMatrixWorld(true)
+    const forearm = bone(`LowerArm${side}`)
+    const localPosition = (name: string) => forearm.worldToLocal(bone(`${name}${side}`).getWorldPosition(new THREE.Vector3()))
+    const wrist = localPosition('Wrist')
+    const palm = localPosition('Index1').sub(wrist)
+      .cross(localPosition('Pinky1').sub(wrist)).multiplyScalar(side === 'L' ? 1 : -1).normalize()
+    palmRoll.set(side, Math.atan2(-palm.x, palm.z))
   }
   function poseArm(amount: number) {
     if (!seated) return
@@ -77,6 +112,7 @@ export function buildAssetCharacter(asset: GLTF, hairstyles: GLTF, appearance: C
       const sign = side === 'R' ? -1 : 1
       pointBone(`UpperArm${side}`, new THREE.Vector3(sign * 0.13, -0.95 + reach * 0.66, 0.25 + reach * 0.71))
       pointBone(`LowerArm${side}`, new THREE.Vector3(-sign * 0.12, 0.12 + reach * 0.03, 1))
+      bone(`LowerArm${side}`).rotateY(palmRoll.get(side)!)
     }
   }
   function update(next: CharacterAppearance) {

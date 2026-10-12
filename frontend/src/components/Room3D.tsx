@@ -324,9 +324,13 @@ export default function Room3D({ players, gameState, playerId, appearance, cardP
       <div className="room3d-mode"><button onClick={() => setMode(false)} aria-pressed={!walking}>Vista de mesa</button><button onClick={() => setMode(true)} aria-pressed={walking}>Recorrer sala</button></div>
       <p>{walking ? 'W A S D / flechas · Arrastra para mirar' : 'Arrastra para mirar · Tu mano siempre a la vista'}<br />Espacio: subir · Shift: bajar</p>
     </div>
-    {walking && <div className="room3d-pad" aria-label="Controles para caminar">
+    {walking && <div className="room3d-pad" aria-label="Controles para caminar" onContextMenu={event => event.preventDefault()}>
       {([['KeyW', '↑', 'Avanzar'], ['KeyA', '←', 'Izquierda'], ['KeyS', '↓', 'Retroceder'], ['KeyD', '→', 'Derecha'], ['Space', 'Subir', 'Subir cámara'], ['ShiftLeft', 'Bajar', 'Bajar cámara']] as const).map(([code, icon, label]) => <button key={code} aria-label={label}
-        onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); input.current.add(code) }}
+        onPointerDown={event => {
+          if (event.button !== 0) return
+          if (event.pointerType !== 'mouse') event.preventDefault()
+          event.currentTarget.setPointerCapture(event.pointerId); input.current.add(code)
+        }}
         onPointerUp={() => input.current.delete(code)} onPointerCancel={() => input.current.delete(code)} onLostPointerCapture={() => input.current.delete(code)}
         onKeyDown={event => { if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); input.current.add(code) } }}
         onKeyUp={() => input.current.delete(code)} onBlur={() => input.current.delete(code)}>{icon}</button>)}
