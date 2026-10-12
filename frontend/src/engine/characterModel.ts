@@ -60,10 +60,9 @@ export function buildAssetCharacter(asset: GLTF, hairstyles: GLTF, appearance: C
   const tail = new THREE.Mesh(tailGeometry, tailMaterial)
   tail.position.set(0, 0.065, -0.145); tail.rotation.x = -0.35
   tail.castShadow = true; hairRoot.add(tail); materials.push(tailMaterial)
-  function pointBone(name: string, direction: THREE.Vector3) {
+  function orientBone(name: string, localRotation: THREE.Quaternion) {
     const joint = bone(name)
     group.updateMatrixWorld(true)
-    const localRotation = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0), direction.clone().normalize())
     const worldRotation = group.getWorldQuaternion(new THREE.Quaternion()).multiply(localRotation)
     joint.quaternion.copy(joint.parent!.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(worldRotation))
     joint.updateMatrixWorld(true)
@@ -95,9 +94,14 @@ export function buildAssetCharacter(asset: GLTF, hairstyles: GLTF, appearance: C
   // Find the palm plane from the fingers; the two hands have mirrored bone axes.
   // Roll the forearm with the hand so the wrist does not take all of the twist.
   const palmRoll = new Map<string, number>()
+  const elbowRoll = new Map<string, THREE.Quaternion>()
   if (seated) for (const side of ['L', 'R']) {
     group.updateMatrixWorld(true)
     const forearm = bone(`LowerArm${side}`)
+    const relative = bone(`UpperArm${side}`).getWorldQuaternion(new THREE.Quaternion()).invert()
+      .multiply(forearm.getWorldQuaternion(new THREE.Quaternion()))
+    const neutralAxis = new THREE.Vector3(0, 1, 0).applyQuaternion(relative)
+    elbowRoll.set(side, new THREE.Quaternion().setFromUnitVectors(neutralAxis, new THREE.Vector3(0, 1, 0)).multiply(relative))
     const localPosition = (name: string) => forearm.worldToLocal(bone(`${name}${side}`).getWorldPosition(new THREE.Vector3()))
     const wrist = localPosition('Wrist')
     const palm = localPosition('Index1').sub(wrist)
@@ -110,9 +114,16 @@ export function buildAssetCharacter(asset: GLTF, hairstyles: GLTF, appearance: C
     for (const side of ['L','R']) {
       const reach = side === 'R' ? t : 0
       const sign = side === 'R' ? -1 : 1
-      pointBone(`UpperArm${side}`, new THREE.Vector3(sign * 0.13, -0.95 + reach * 0.66, 0.25 + reach * 0.71))
-      pointBone(`LowerArm${side}`, new THREE.Vector3(-sign * 0.12, 0.12 + reach * 0.03, 1))
-      bone(`LowerArm${side}`).rotateY(palmRoll.get(side)!)
+      const upperDirection = new THREE.Vector3(sign * 0.13, -0.95 + reach * 0.66, 0.25 + reach * 0.71).normalize()
+      const lowerDirection = new THREE.Vector3(-sign * 0.12, 0.12 + reach * 0.03, 1).normalize()
+      const lowerRotation = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), lowerDirection)
+        .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), palmRoll.get(side)!))
+      // Transport the forearm frame across the elbow bend, preserving the rig's
+      // neutral roll instead of twisting the two sides of the elbow independently.
+      const upperRotation = new THREE.Quaternion().setFromUnitVectors(lowerDirection, upperDirection)
+        .multiply(lowerRotation).multiply(elbowRoll.get(side)!.clone().invert())
+      orientBone(`UpperArm${side}`, upperRotation)
+      orientBone(`LowerArm${side}`, lowerRotation)
     }
   }
   function update(next: CharacterAppearance) {

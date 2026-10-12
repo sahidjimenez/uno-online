@@ -13,6 +13,28 @@ beforeAll(async () => {
  ;[man, woman, hair] = await Promise.all([read('man'), read('woman'), read('hairstyles')])
 })
 describe('licensed character integration', () => {
+ it('bends seated elbows without adding twist between the upper arm and forearm', () => {
+  const roll = (model: ReturnType<typeof buildAssetCharacter>, side: string) => {
+   model.group.updateMatrixWorld(true)
+   const upper = model.group.getObjectByName(`UpperArm${side}`)!.getWorldQuaternion(new Quaternion())
+   const lower = model.group.getObjectByName(`LowerArm${side}`)!.getWorldQuaternion(new Quaternion())
+   const relative = upper.invert().multiply(lower)
+   const axis = new Vector3(0, 1, 0).applyQuaternion(relative)
+   return new Quaternion().setFromUnitVectors(axis, new Vector3(0, 1, 0)).multiply(relative)
+  }
+  for (const asset of [man, woman]) {
+   const standing = buildAssetCharacter(asset, hair, DEFAULT_CHARACTER, false)
+   const seated = buildAssetCharacter(asset, hair, DEFAULT_CHARACTER, true)
+   for (const angle of [0, Math.PI / 2, Math.PI]) {
+    seated.group.rotation.y = angle
+    for (const amount of [0, 0.25, 0.5, 0.75, 1, 0]) {
+     seated.poseArm(amount)
+     for (const side of ['L', 'R']) expect(roll(seated, side).angleTo(roll(standing, side))).toBeLessThan(0.001)
+    }
+   }
+   standing.dispose(); seated.dispose()
+  }
+ })
  it('keeps both palms facing down while seated, reaching, and returning at any seat', () => {
   for (const asset of [man, woman]) {
    const model = buildAssetCharacter(asset, hair, DEFAULT_CHARACTER, true)
