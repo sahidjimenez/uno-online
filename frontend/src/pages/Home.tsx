@@ -1,3 +1,4 @@
+import { Entrance } from '../components/Entrance'
 import { useEffect, useRef, useState } from 'react'
 import { createRoom, joinRoom, findPublicRoom, listPublicRooms } from '../services/room.service'
 import type { PublicRoom } from '../services/room.service'
@@ -5,6 +6,7 @@ import type { LocalSession } from '../types'
 import { CharacterCustomizer } from '../components/CharacterCustomizer'
 
 interface Props {
+  onLocal: () => void
   onEnter: (session: LocalSession, mode: 'lobby') => void
 }
 
@@ -176,7 +178,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-export function Home({ onEnter }: Props) {
+export function Home({ onEnter, onLocal }: Props) {
   const [name,       setName]       = useState('')
   const [code,       setCode]       = useState('')
   const [password,   setPassword]   = useState('')
@@ -262,7 +264,7 @@ export function Home({ onEnter }: Props) {
   }
 
   return (
-    <div className="multiplayer-home min-h-screen flex flex-col items-center justify-center px-6">
+    <Entrance mode="friends" onSwitch={onLocal}>
 
       {showRules && <RulesModal onClose={() => setShowRules(false)} />}
 
@@ -278,23 +280,11 @@ export function Home({ onEnter }: Props) {
         />
       )}
 
-      <div className="multiplayer-card">
-      <p className="multiplayer-eyebrow">JUEGA EN COMPAÑÍA</p>
-      {/* Logo + botón reglas */}
-      <div className="relative mb-4">
-        <div className="multiplayer-logo">
-          <span className="text-white text-5xl font-black">NEXO</span>
-        </div>
-        <button
-          onClick={() => setShowRules(true)}
-          className="absolute -top-2 -right-3 bg-surface border border-border text-gray text-[10px] font-bold px-2 py-1 rounded-lg hover:text-white hover:border-uno-yellow transition-colors"
-          title="Ver reglas del juego"
-        >
-          ? Reglas
-        </button>
+      <div className="entrance-heading"><span className="entrance-kicker">LAS MEJORES RONDAS SE COMPARTEN</span>
+        <h1>Todos a la mesa.</h1>
+        <p>Invita a tus amigos o encuentra nuevos rivales. La próxima jugada es de ustedes.</p>
       </div>
-      <p className="text-gray text-sm mb-6">Crea una mesa, invita a tus amigos y cambia el rumbo.</p>
-
+      <div className="entrance-benefits"><span>2–8 jugadores</span><span>Salas privadas</span><button onClick={() => setShowRules(true)}>Ver reglas ↗</button></div>
       <label htmlFor="online-name" className="online-input-label">Tu nombre en la mesa</label>
       {/* Campo de nombre */}
       <input
@@ -423,10 +413,9 @@ export function Home({ onEnter }: Props) {
         </div>
       )}
 
-      {error && <p className="text-uno-red text-sm text-center mt-4">{error}</p>}
+      {error && <p role="alert" className="text-uno-red text-sm text-center mt-4">{error}</p>}
 
       <p className="online-features">◈ 2–8 jugadores <span>↻ Reglas europeas</span> <span>☺ Reacciones en vivo</span></p>
-      </div>
-    </div>
+    </Entrance>
   )
 }

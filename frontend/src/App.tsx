@@ -59,9 +59,9 @@ function OnlineApp({ onLocal }: { onLocal: () => void }) {
 
   return (
     <>
-      {screen === 'home' && <button onClick={onLocal} className="mode-switch-button online-mode-switch">← Jugar local con bots</button>}
       {screen === 'home' && (
         <Home
+          onLocal={onLocal}
           onEnter={(s, mode) => {
             setSession(s)
             setScreen(mode)

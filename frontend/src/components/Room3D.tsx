@@ -15,11 +15,15 @@ interface Props {
   walking: boolean
   showNames: boolean
   onFallback: () => void
+  preview?: boolean
+  paused?: boolean
 }
 const COLORS: Record<string, string> = { red: '#e77969', blue: '#639fc1', green: '#4aa993', yellow: '#d9b766', wild: '#555073' }
 const LABELS: Record<string, string> = { skip: '⊘', reverse: '⇄', draw2: '+2', wild: '◇', wild4: '+4' }
 
-export default function Room3D({ players, gameState, playerId, appearance, cardPlay, walking, showNames, onFallback }: Props) {
+export default function Room3D({ players, gameState, playerId, appearance, cardPlay, walking, showNames, onFallback, preview = false, paused = false }: Props) {
+  const motionPaused = useRef(paused)
+  useEffect(() => { motionPaused.current = paused }, [paused])
   const host = useRef<HTMLDivElement>(null)
   const input = useRef(new Set<string>())
   const controller = useRef<{ reset: (walk: boolean) => void; update: (players: Player[], state: GameState, appearance: CharacterAppearance, pendingPlay: boolean) => void; play: (event: GameEvent) => void } | null>(null)
@@ -210,14 +214,15 @@ export default function Room3D({ players, gameState, playerId, appearance, cardP
       const sorted = [...roster].sort((a, b) => a.seat_order - b.seat_order)
       const myIndex = sorted.findIndex(p => p.id === playerId)
       const ordered = myIndex < 0 ? sorted : [...sorted.slice(myIndex), ...sorted.slice(0, myIndex)]
-      seatCount = ordered.length
-      ordered.forEach((player, i) => {
+      seatCount = preview ? 6 : ordered.length
+      Array.from({ length: seatCount }, (_, i) => ordered[i]).forEach((player, i) => {
         const angle = i * Math.PI * 2 / Math.max(1, seatCount)
         const seat = new THREE.Group(); seat.position.set(Math.sin(angle) * 3.3, 0, Math.cos(angle) * 3.3); seat.rotation.y = angle; dynamic.add(seat)
-        const mat = player.id === state.current_player_id ? activeMat : chairMat
+        const mat = player?.id === state.current_player_id ? activeMat : chairMat
         const cushion = new THREE.Mesh(chairGeometry, mat); cushion.position.y = 0.72; seat.add(cushion)
         const back = new THREE.Mesh(backGeometry, mat); back.position.set(0, 1.15, 0.4); seat.add(back)
         for (const x of [-0.3, 0.3]) for (const z of [-0.3, 0.3]) { const leg = new THREE.Mesh(legGeometry, brass); leg.position.set(x, 0.33, z); seat.add(leg) }
+        if (preview) return
         const character = createCharacter(player.id === playerId ? myAppearance : characterForSeat(player.seat_order), true)
         character.group.rotation.y = Math.PI
         seat.add(character.group); dynamicResources.push(character)
@@ -281,10 +286,17 @@ export default function Room3D({ players, gameState, playerId, appearance, cardP
     container.addEventListener('keydown', keydown); container.addEventListener('blur', clearInput)
     window.addEventListener('keyup', keyup); window.addEventListener('blur', clearInput)
     document.addEventListener('visibilitychange', clearInput)
-    let last = 0
+    let last = 0, orbit = 0.45
     renderer.setAnimationLoop(time => {
       const dt = Math.min((time - last) / 1000, 0.05); last = time
       if (document.hidden) return
+      if (preview) {
+        if (!motionPaused.current) orbit += dt * 0.045
+        camera.position.set(Math.sin(orbit) * 7.7, 4.8, Math.cos(orbit) * 7.7)
+        camera.lookAt(0, 1.3, 0)
+        renderer.render(scene, camera)
+        return
+      }
       for (let i = draws.length - 1; i >= 0; i--) {
         const draw = draws[i]; draw.elapsed += dt
         if (draw.elapsed < 0) continue
@@ -362,7 +374,7 @@ export default function Room3D({ players, gameState, playerId, appearance, cardP
       window.removeEventListener('keyup', keyup); window.removeEventListener('blur', clearInput); document.removeEventListener('visibilitychange', clearInput)
       flights.forEach(flight => flight.dispose()); draws.forEach(draw => draw.dispose()); pile.forEach(card => card.dispose()); clearDynamic(); resources.forEach(resource => resource.dispose()); light.shadow.dispose(); renderer.dispose(); canvas.remove()
     }
-  }, [playerId])
+  }, [playerId, preview])
 
   useEffect(() => { controller.current?.update(players, gameState, appearance, !!cardPlay && seenCard.current !== cardPlay.id) }, [players, gameState, appearance, cardPlay])
   useEffect(() => {
@@ -370,12 +382,11 @@ export default function Room3D({ players, gameState, playerId, appearance, cardP
     seenCard.current = cardPlay.id; controller.current?.play(cardPlay)
   }, [cardPlay])
 
-  useEffect(() => { controller.current?.reset(walking); host.current?.focus({ preventScroll: true }) }, [walking, playerId])
+  useEffect(() => { if (!preview) { controller.current?.reset(walking); host.current?.focus({ preventScroll: true }) } }, [walking, playerId, preview])
+  useEffect(() => { if (failed && preview) onFallback() }, [failed, preview, onFallback])
+  if (preview) return <div ref={host} className="room3d-canvas" aria-hidden="true" />
   return <>
     <div ref={host} className="room3d-canvas" tabIndex={0} role="region" aria-label="Sala 3D. Arrastra para mirar. Espacio para subir y Shift para bajar. En modo recorrer, usa W A S D o las flechas para caminar." />
-    <div className="room3d-controls">
-      <p>{walking ? 'W A S D / flechas · Arrastra para mirar' : 'Arrastra para mirar · Tu mano siempre a la vista'}<br />Espacio: subir · Shift: bajar</p>
-    </div>
     {walking && <div className="room3d-pad" aria-label="Controles para caminar" onContextMenu={event => event.preventDefault()}>
       {([['KeyW', '↑', 'Avanzar'], ['KeyA', '←', 'Izquierda'], ['KeyS', '↓', 'Retroceder'], ['KeyD', '→', 'Derecha'], ['Space', 'Subir', 'Subir cámara'], ['ShiftLeft', 'Bajar', 'Bajar cámara']] as const).map(([code, icon, label]) => <button key={code} aria-label={label}
         onPointerDown={event => {

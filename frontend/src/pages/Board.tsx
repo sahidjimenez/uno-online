@@ -310,7 +310,7 @@ function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeo
           <div className={`turn-status ${isMyTurn ? 'your-turn' : ''}`} role="status">
             <span>{isMyTurn ? '▶' : '◷'}</span>{isMyTurn ? 'Tu turno' : `Turno de ${currentPlayer?.name ?? '…'}`}
           </div>
-          <p className="hand-caption">{me?.name ?? 'Tú'} · {myHand.length} cartas <span>{isMyTurn ? 'Elige una carta iluminada o roba del mazo' : 'La mesa está en juego'}</span></p>
+          <p className="hand-caption">{me?.name ?? 'Tú'} · {myHand.length} cartas</p>
         </section>
       </main>
 
