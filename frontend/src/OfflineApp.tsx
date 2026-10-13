@@ -46,8 +46,8 @@ export function OfflineApp({ onOnline }: { onOnline: () => void }) {
     onRematch={start} onLobby={() => { setSession(null); setResult(null) }} />
   return <ErrorBoundary onReset={() => setSession(null)}>
     <div className="relative">
-      <Board local key={session.roomId} session={session} onFinish={(winner, players) => setResult({ winner, players })} />
-      <button onClick={() => setSession(null)} className="fixed bottom-3 left-3 z-10 text-xs text-gray bg-surface rounded-full px-3 py-2">← Salir</button>
+      <Board local key={session.roomId} session={session} onExit={() => setSession(null)} onFinish={(winner, players) => setResult({ winner, players })} />
+      <button onClick={() => setSession(null)} className="desktop-exit-game fixed bottom-3 left-3 z-10 text-xs text-gray bg-surface rounded-full px-3 py-2">← Salir</button>
     </div>
   </ErrorBoundary>
 }

@@ -1,3 +1,4 @@
+import { Smile, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { LocalSession, Player } from '../types'
@@ -9,6 +10,8 @@ const EMOJIS = [
 ]
 export interface Reaction { id: string; playerId: string; emoji: string; time: number }
 export function ReactionBar({ session, players, local = false, onReaction }: { session: LocalSession; players: Player[]; local?: boolean; onReaction: (reaction: Reaction) => void }) {
+  const [open, setOpen] = useState(false)
+  const trigger = useRef<HTMLButtonElement>(null)
   const receiveRef = useRef(onReaction)
   receiveRef.current = onReaction
   const recent = useRef(new Map<string, number>())
@@ -38,6 +41,8 @@ export function ReactionBar({ session, players, local = false, onReaction }: { s
   async function react(emoji: string) {
     if (!ready || Date.now() - lastSent.current < 1200) return
     lastSent.current = Date.now()
+    setOpen(false)
+    trigger.current?.focus({ preventScroll: true })
     setCooldown(true)
     setError('')
     const reaction = { id: crypto.randomUUID(), playerId: session.playerId, emoji, time: Date.now() }
@@ -50,7 +55,12 @@ export function ReactionBar({ session, players, local = false, onReaction }: { s
     }
   }
   return <>
-    <div className="reaction-bar" aria-label="Reacciones">
+    <button ref={trigger} className="mobile-reactions-toggle" aria-expanded={open} aria-controls="game-reactions" onClick={() => setOpen(value => !value)}>
+      {open ? <X size={20} aria-hidden="true" /> : <Smile size={20} aria-hidden="true" />}<span>Reacciones</span>
+    </button>
+    {open && <button className="mobile-reactions-backdrop" aria-label="Cerrar reacciones" onClick={() => { setOpen(false); trigger.current?.focus() }} />}
+    <div id="game-reactions" className={`reaction-bar${open ? ' reactions-open' : ''}`} aria-label="Reacciones" onKeyDown={event => { if (event.key === 'Escape') { setOpen(false); trigger.current?.focus() } }}>
+
       <span className="reaction-label">Reacciona</span>
       <div>{EMOJIS.map(({ emoji, label }) => <button key={emoji} aria-label={label} title={label} disabled={!ready || cooldown} onClick={() => void react(emoji)}>{emoji}</button>)}</div>
       {error && <p role="status">{error}</p>}

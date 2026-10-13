@@ -90,3 +90,46 @@
   .immersive-room .hand-caption { font-size:10px; }.immersive-room .hand-caption span { font-size:9px; }
   .room3d-pad { left:12px; bottom:340px; grid-template-columns:repeat(3,36px); }.room3d-pad button { height:36px; }
 }
+
+/* Mobile game controls: keep the playing surface clear. */
+.game-options { display:contents; }
+.game-options > .table-header-actions { position:absolute; top:18px; right:24px; z-index:6; }
+.game-room .table-header { padding-right:340px; }
+.mobile-options-toggle,.mobile-options-backdrop,.mobile-options-title,.mobile-reactions-toggle,.mobile-reactions-backdrop { display:none; }
+@media(max-width:700px) {
+  .game-room .table-header { padding-right:112px; }
+  .game-room .table-room-code { display:none; }
+  .game-room .game-connection-status.connection-healthy { display:none; }
+  .mobile-options-toggle { position:absolute; top:12px; right:12px; z-index:32; display:flex; align-items:center; gap:7px; min-height:42px; padding:10px 12px; border-radius:14px; background:#183632ed; color:#d6eadb; border:1px solid #a9e6d640; font-size:11px; }
+  .game-room .game-options { display:none; }
+  .game-room.mobile-options-open .game-options { display:flex; position:absolute; z-index:31; top:64px; right:12px; left:12px; max-height:calc(100dvh - 86px); overflow-y:auto; flex-direction:column; gap:20px; padding:22px; border:1px solid #a9e6d644; border-radius:20px; background:#142e2e; box-shadow:0 16px 60px #0008; }
+  .mobile-options-title { display:block; font-size:20px; font-weight:600; color:#dfebdf; }
+  .mobile-options-backdrop { display:block; position:fixed; inset:0; z-index:30; background:#071c1944; }
+  .game-room .game-options > .table-header-actions { position:static; display:flex; flex-wrap:wrap; gap:8px; }
+  .game-room .game-options .table-header-actions button { min-height:44px; font-size:12px; }
+  .game-room .game-options .table-view-controls { position:static; display:flex; align-items:flex-start; width:100%; max-width:none; flex-wrap:nowrap; }
+  .game-room .game-options .room3d-mode { flex:1; flex-direction:column; }
+  .game-room .game-options .room3d-mode button { min-height:44px; justify-content:flex-start; padding:10px 12px; gap:10px; font-size:12px; }
+  .game-room .game-options .bot-speed-control { position:static; flex-direction:column; align-items:stretch; font-size:12px; gap:8px; }
+  .game-room .game-options .bot-speed-control select { min-height:44px; font-size:16px; }
+  .game-room.hide-views .game-options .room3d-mode,.game-room.hide-speed .game-options .bot-speed-control { display:none; }
+  .game-room .room3d-roster { top:16px; right:126px; flex-wrap:nowrap; overflow-x:auto; pointer-events:auto; padding-bottom:4px; scrollbar-width:none; }
+  .game-room .room3d-game-status { top:16px; }
+  .game-room .room3d-roster > * { flex-shrink:0; }
+  .game-room .mobile-reactions-toggle { position:fixed; left:78px; bottom:max(12px,env(safe-area-inset-bottom)); z-index:22; display:flex; align-items:center; justify-content:center; gap:6px; min-height:42px; padding:10px 12px; border-radius:14px; background:#17342ff5; border:1px solid #a9e6d644; color:#d3e7d7; font-size:11px; }
+  .game-room .reaction-bar { display:none; }
+  .game-room .reaction-bar.reactions-open { display:block; left:12px; right:auto; bottom:66px; z-index:23; padding:12px; border-radius:18px; }
+  .game-room .reaction-bar button { min-width:42px; min-height:44px; font-size:25px; }
+  .game-room .reaction-bar .reaction-label { display:block; margin-bottom:8px; }
+  .game-room .mobile-reactions-backdrop { display:block; position:fixed; inset:0; z-index:21; background:transparent; }
+  .game-room .voice-notes { bottom:max(12px,env(safe-area-inset-bottom)); }
+  .game-room .voice-toggle { min-height:42px; border-radius:14px; }
+  .game-room.hide-messages .mobile-reactions-toggle,.game-room.hide-messages .mobile-reactions-backdrop { display:none; }
+  .mobile-options-toggle:focus-visible,.mobile-reactions-toggle:focus-visible { outline:2px solid #c5e8cf; outline-offset:3px; }
+}
+.mobile-exit-game { display:none; }
+@media(max-width:700px) {
+  .desktop-exit-game { display:none; }
+  .game-options .mobile-exit-game { display:block; order:10; min-height:44px; padding:12px 16px; border:1px solid #e7a59844; border-radius:12px; background:#e7a5980c; color:#efb7aa; text-align:left; font-size:13px; }
+  .game-room .mobile-reactions-toggle { left:12px; }
+}

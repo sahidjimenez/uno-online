@@ -16,13 +16,14 @@ import type { LocalSession, Card, CardColor, Player } from '../types'
 import '../components/Room3D.css'
 import { CharacterCustomizer } from '../components/CharacterCustomizer'
 import { useCharacter } from '../hooks/useCharacter'
-import { Footprints, LayoutGrid, PanelsTopLeft } from 'lucide-react'
+import { Footprints, LayoutGrid, PanelsTopLeft, Settings2, X } from 'lucide-react'
 import { TableVisibilityControl, DEFAULT_VISIBILITY } from '../components/TableVisibility'
 
 const Room3D = lazy(() => import('../components/Room3D'))
 
 interface Props {
   local?: boolean
+  onExit?: () => void
   session:  LocalSession
   onFinish: (winnerId: string, players: Player[]) => void
 }
@@ -38,9 +39,10 @@ function OnlineBoard(props: Props) {
   const game = useOnlineGame(props.session)
   return <BoardView {...props} game={game} />
 }
-function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeof useOfflineGame> | ReturnType<typeof useOnlineGame> }) {
+function BoardView({ session, onFinish, onExit, game }: Props & { game: ReturnType<typeof useOfflineGame> | ReturnType<typeof useOnlineGame> }) {
   const { gameState, players, myHand, lastEvent, unoPenalty, loading, isMyTurn, localPlay, localDraw, localUno, localCatch } = game
   const [pendingWild,      setPendingWild]      = useState<Card | null>(null)
+  const [optionsOpen, setOptionsOpen] = useState(false)
   const [view, setView] = useState<'table' | 'walk' | 'classic'>('table')
   const room3D = view !== 'classic'
   const [visibility, setVisibility] = useState({ ...DEFAULT_VISIBILITY })
@@ -187,8 +189,8 @@ function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeo
   const colorNames = { red: 'Rojo', blue: 'Azul', green: 'Verde', yellow: 'Amarillo', wild: 'Comodín' }
 
   return (
-    <div className={`game-room ${room3D ? 'immersive-room' : ''} ${tableEffect?.type === 'reverse' ? 'table-reversing' : ''} ${Object.entries(visibility).filter(([, visible]) => !visible).map(([key]) => `hide-${key}`).join(' ')}`}>
-      {online && <div className="game-connection-status" role="status">
+    <div className={`game-room ${optionsOpen ? 'mobile-options-open' : ''} ${room3D ? 'immersive-room' : ''} ${tableEffect?.type === 'reverse' ? 'table-reversing' : ''} ${Object.entries(visibility).filter(([, visible]) => !visible).map(([key]) => `hide-${key}`).join(' ')}`}>
+      {online && <div className={`game-connection-status${!online.syncError && !actionError && !actionPending ? ' connection-healthy' : ''}`} role="status">
         <span>{actionPending ? 'Confirmando jugada…' : online.syncError ?? actionError ?? 'Mesa conectada'}</span>
         <button disabled={online.syncing || actionPending} onClick={async () => { if (await online.refreshGame()) setActionError(null) }}>{online.syncing ? 'Actualizando…' : 'Reconectar'}</button>
       </div>}
@@ -198,6 +200,14 @@ function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeo
       <header className="table-header">
         <div className="table-brand"><strong>NEXO</strong><span>Mesa 3D</span></div>
         <div className="table-room-code">{localPlay ? 'MODO LOCAL' : 'SALA'} <strong>{localPlay ? 'CONTRA BOTS' : session.roomCode}</strong></div>
+      </header>
+      <button className="mobile-options-toggle" aria-expanded={optionsOpen} aria-controls="game-options" onClick={() => setOptionsOpen(value => !value)}>
+        {optionsOpen ? <X size={19} aria-hidden="true" /> : <Settings2 size={19} aria-hidden="true" />}<span>{optionsOpen ? 'Cerrar' : 'Opciones'}</span>
+      </button>
+      {optionsOpen && <button className="mobile-options-backdrop" aria-label="Cerrar opciones" onClick={() => setOptionsOpen(false)} />}
+      <div id="game-options" className="game-options" onKeyDown={event => { if (event.key === 'Escape') setOptionsOpen(false) }}>
+        <h2 className="mobile-options-title">A tu manera</h2>
+        {onExit && <button className="mobile-exit-game" onClick={onExit}>← Salir de la partida</button>}
         <div className="table-header-actions">
         <CharacterCustomizer compact />
         <button onClick={toggleSound} className="table-view-label sound-toggle" aria-pressed={soundEnabled}
@@ -205,13 +215,12 @@ function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeo
           <span aria-hidden="true">{soundEnabled ? '🔊' : '🔇'}</span> {soundEnabled ? 'Sonido activo' : 'Sin sonido'}
         </button>
         </div>
-      </header>
       <div className="table-view-controls">
         <TableVisibilityControl value={visibility} onChange={setVisibility} />
         <div className="room3d-mode" role="group" aria-label="Vista del juego">
-          <button onClick={() => setView('table')} aria-pressed={view === 'table'}><LayoutGrid size={16} aria-hidden="true" /><span>Vista de mesa</span></button>
-          <button onClick={() => setView('walk')} aria-pressed={view === 'walk'}><Footprints size={16} aria-hidden="true" /><span>Recorrer sala</span></button>
-          <button onClick={() => setView('classic')} aria-pressed={view === 'classic'}><PanelsTopLeft size={16} aria-hidden="true" /><span>Vista clásica</span></button>
+          <button onClick={() => { setView('table'); setOptionsOpen(false) }} aria-pressed={view === 'table'}><LayoutGrid size={16} aria-hidden="true" /><span>Vista de mesa</span></button>
+          <button onClick={() => { setView('walk'); setOptionsOpen(false) }} aria-pressed={view === 'walk'}><Footprints size={16} aria-hidden="true" /><span>Recorrer sala</span></button>
+          <button onClick={() => { setView('classic'); setOptionsOpen(false) }} aria-pressed={view === 'classic'}><PanelsTopLeft size={16} aria-hidden="true" /><span>Vista clásica</span></button>
         </div>
       </div>
 
@@ -224,6 +233,7 @@ function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeo
           <option value={3}>Muy rápida · 3×</option>
         </select>
       </div>}
+      </div>
       <main className="table-stage" aria-label="Mesa de juego NEXO">
         {!room3D && <>
         <div className="walnut-table" aria-hidden="true"><div className="table-grain" /></div>
