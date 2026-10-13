@@ -16,6 +16,8 @@ import type { LocalSession, Card, CardColor, Player } from '../types'
 import '../components/Room3D.css'
 import { CharacterCustomizer } from '../components/CharacterCustomizer'
 import { useCharacter } from '../hooks/useCharacter'
+import { Footprints, LayoutGrid, PanelsTopLeft } from 'lucide-react'
+import { TableVisibilityControl, DEFAULT_VISIBILITY } from '../components/TableVisibility'
 
 const Room3D = lazy(() => import('../components/Room3D'))
 
@@ -39,7 +41,9 @@ function OnlineBoard(props: Props) {
 function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeof useOfflineGame> | ReturnType<typeof useOnlineGame> }) {
   const { gameState, players, myHand, lastEvent, unoPenalty, loading, isMyTurn, localPlay, localDraw, localUno, localCatch } = game
   const [pendingWild,      setPendingWild]      = useState<Card | null>(null)
-  const [room3D, setRoom3D] = useState(true)
+  const [view, setView] = useState<'table' | 'walk' | 'classic'>('table')
+  const room3D = view !== 'classic'
+  const [visibility, setVisibility] = useState({ ...DEFAULT_VISIBILITY })
   const appearance = useCharacter()
   const [tableEffect, setTableEffect] = useState<{ type: NonNullable<ReturnType<typeof detectTableEffect>>['type'] | 'uno_penalty'; stack: number; id: string; playerId?: string } | null>(null)
   const [unoAcknowledged, setUnoAcknowledged] = useState<string | null>(null)
@@ -183,26 +187,33 @@ function BoardView({ session, onFinish, game }: Props & { game: ReturnType<typeo
   const colorNames = { red: 'Rojo', blue: 'Azul', green: 'Verde', yellow: 'Amarillo', wild: 'Comodín' }
 
   return (
-    <div className={`game-room ${room3D ? 'immersive-room' : ''} ${tableEffect?.type === 'reverse' ? 'table-reversing' : ''}`}>
+    <div className={`game-room ${room3D ? 'immersive-room' : ''} ${tableEffect?.type === 'reverse' ? 'table-reversing' : ''} ${Object.entries(visibility).filter(([, visible]) => !visible).map(([key]) => `hide-${key}`).join(' ')}`}>
       {online && <div className="game-connection-status" role="status">
         <span>{actionPending ? 'Confirmando jugada…' : online.syncError ?? actionError ?? 'Mesa conectada'}</span>
         <button disabled={online.syncing || actionPending} onClick={async () => { if (await online.refreshGame()) setActionError(null) }}>{online.syncing ? 'Actualizando…' : 'Reconectar'}</button>
       </div>}
       {room3D && <Suspense fallback={<div className="room3d-loading" role="status">Preparando la sala 3D…</div>}>
-        <Room3D players={players} gameState={gameState} playerId={session.playerId} appearance={appearance} cardPlay={game.cardPlay} onFallback={() => setRoom3D(false)} />
+        <Room3D players={players} gameState={gameState} playerId={session.playerId} appearance={appearance} cardPlay={game.cardPlay} walking={view === 'walk'} showNames={visibility.names} onFallback={() => setView('classic')} />
       </Suspense>}
       <header className="table-header">
         <div className="table-brand"><strong>NEXO</strong><span>Mesa 3D</span></div>
         <div className="table-room-code">{localPlay ? 'MODO LOCAL' : 'SALA'} <strong>{localPlay ? 'CONTRA BOTS' : session.roomCode}</strong></div>
         <div className="table-header-actions">
         <CharacterCustomizer compact />
-        <button onClick={() => setRoom3D(value => !value)} className="table-view-label" aria-pressed={room3D}>{room3D ? 'Vista clásica' : 'Entrar a sala 3D'}</button>
         <button onClick={toggleSound} className="table-view-label sound-toggle" aria-pressed={soundEnabled}
           aria-label={soundEnabled ? 'Silenciar efectos de sonido' : 'Activar efectos de sonido'}>
           <span aria-hidden="true">{soundEnabled ? '🔊' : '🔇'}</span> {soundEnabled ? 'Sonido activo' : 'Sin sonido'}
         </button>
         </div>
       </header>
+      <div className="table-view-controls">
+        <TableVisibilityControl value={visibility} onChange={setVisibility} />
+        <div className="room3d-mode" role="group" aria-label="Vista del juego">
+          <button onClick={() => setView('table')} aria-pressed={view === 'table'}><LayoutGrid size={16} aria-hidden="true" /><span>Vista de mesa</span></button>
+          <button onClick={() => setView('walk')} aria-pressed={view === 'walk'}><Footprints size={16} aria-hidden="true" /><span>Recorrer sala</span></button>
+          <button onClick={() => setView('classic')} aria-pressed={view === 'classic'}><PanelsTopLeft size={16} aria-hidden="true" /><span>Vista clásica</span></button>
+        </div>
+      </div>
 
       {'botSpeed' in game && <div className="bot-speed-control">
         <label htmlFor="bot-speed">Velocidad de bots</label>

@@ -5,12 +5,42 @@
 .immersive-room { position:relative; height:100dvh; min-height:640px; isolation:isolate; background:#182829; }
 .immersive-room:after { content:''; pointer-events:none; position:absolute; inset:0; z-index:1; background:linear-gradient(#081b2855,transparent 28%,transparent 55%,#071518e8); }
 .table-header-actions { display:flex; gap:8px; align-items:center; }
+.game-room { position:relative; }
 .immersive-room .table-header { pointer-events:none; padding:18px 24px; }
 .immersive-room .table-header button { pointer-events:auto; }
 .immersive-room .table-brand { background:#112c2cde; }
 .immersive-room .table-stage { height:calc(100% - 96px); min-height:0; width:100%; z-index:2; pointer-events:none; }
 .immersive-room .table-stage button,.immersive-room .player-hand-scroll { pointer-events:auto; }
-.room3d-controls { position:absolute; z-index:6; left:24px; top:98px; }
+.table-view-controls { position:absolute; z-index:6; left:24px; top:88px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; max-width:calc(100% - 48px); }
+.room3d-controls { position:absolute; z-index:6; left:24px; top:138px; pointer-events:none; }
+.table-view-controls button { display:flex; align-items:center; justify-content:center; gap:6px; min-height:40px; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; touch-action:manipulation; }
+.table-view-controls svg { flex-shrink:0; }
+.table-visibility-eye { width:44px; height:44px; flex-shrink:0; border:1px solid #adc9bc66; border-radius:12px; background:#102727f2; color:#d9f5e8; }
+.table-visibility-dialog { padding:0; width:min(440px,calc(100vw - 24px)); max-height:85dvh; margin:auto; border:1px solid #adc9bc66; border-radius:20px; background:#122b2b; color:#d9f5e8; box-shadow:0 24px 80px #0008; }
+.table-visibility-dialog::backdrop { background:#061515b8; backdrop-filter:blur(4px); }
+.table-visibility-content { padding:22px; }
+.table-visibility-content header,.table-visibility-content footer { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.table-visibility-content h2 { margin:0; font-size:19px; }
+.table-visibility-content p { margin:12px 0 18px; color:#a9c4b8; font-size:13px; }
+.table-visibility-content button { min-height:44px; padding:10px 14px; border-radius:10px; background:#23453e; color:#ddf6e8; }
+.table-visibility-content header button { display:grid; place-items:center; padding:10px; }
+.table-visibility-options { display:grid; gap:4px; }
+.table-visibility-options label { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:12px 0; border-bottom:1px solid #adc9bc22; cursor:pointer; }
+.table-visibility-options strong { display:block; font-size:14px; }
+.table-visibility-options small { display:block; margin-top:4px; color:#a9c4b8; font-size:12px; line-height:1.4; }
+.table-visibility-options input { width:22px; height:22px; flex-shrink:0; accent-color:#a9e6d6; }
+.table-visibility-content footer { margin-top:20px; }
+.table-visibility-content footer button:last-child { background:#bde7d2; color:#102b25; font-weight:700; }
+.table-visibility-dialog :focus-visible { outline:2px solid #a9e6d6; outline-offset:3px; }
+.game-room.hide-views .room3d-mode,
+.game-room.hide-navigation .room3d-controls,.game-room.hide-navigation .room3d-pad,
+.game-room.hide-header .table-header,
+.game-room.hide-players .room3d-roster,.game-room.hide-players .opponent-seats .seat-badge,
+.game-room.hide-speed .bot-speed-control,
+.game-room.hide-actions .room3d-game-status,.game-room.hide-actions .table-center,.game-room.hide-actions .table-uno-button,
+.game-room.hide-hand .player-area,
+.game-room.hide-messages .reaction-bar,.game-room.hide-messages .voice-notes,.game-room.hide-messages .table-message-stream { display:none; }
+.table-view-controls button:focus-visible { outline:2px solid #a9e6d6; outline-offset:2px; }
 .room3d-mode { display:flex; gap:4px; background:#102727e8; border:1px solid #adc9bc44; padding:4px; border-radius:12px; }
 .room3d-mode button { padding:10px 16px; font-size:12px; color:#c6d9cc; border-radius:8px; }
 .room3d-mode button[aria-pressed=true] { background:#c0e7d5; color:#15352c; font-weight:700; }
@@ -45,11 +75,14 @@
   .immersive-room .table-header { padding:12px; gap:8px; }
   .immersive-room .table-brand { padding:7px 10px; }.immersive-room .table-brand span { display:none; }
   .table-header-actions { gap:5px; }.table-header-actions .table-view-label { font-size:9px; padding:9px; }
-  .room3d-controls { top:72px; left:12px; }.room3d-mode button { padding:8px 10px; font-size:10px; }
+  .table-view-controls { top:72px; left:12px; width:calc(100% - 24px); max-width:none; display:grid; grid-template-columns:44px minmax(0,1fr); gap:5px; }
+  .table-view-controls .room3d-mode { min-width:0; gap:2px; }
+  .table-view-controls .room3d-mode button { flex:1; min-width:0; padding:6px 3px; font-size:10px; gap:3px; }
+  .room3d-controls { top:164px; left:12px; }
   .room3d-controls p { font-size:8px; max-width:180px; }
-  .immersive-room .bot-speed-control { top:77px; right:12px; flex-direction:column; align-items:flex-end; }
+  .game-room .bot-speed-control { top:125px; right:12px; flex-direction:column; align-items:flex-end; }
   .immersive-room .table-stage { height:calc(100% - 70px); }
-  .room3d-roster { top:70px; left:12px; right:12px; max-width:none; gap:5px; }
+  .room3d-roster { top:130px; left:12px; right:12px; max-width:none; gap:5px; }
   .room3d-roster .seat-badge { min-width:0; padding:5px 7px; }.room3d-roster .seat-avatar { display:none; }.room3d-roster .seat-info strong { max-width:65px; font-size:10px; }
   .room3d-game-status { top:175px; right:12px; width:102px; gap:7px; padding:10px; }.room3d-game-status > span { font-size:8px; }.room3d-game-status > button { font-size:10px; }
   .immersive-room .player-area { bottom:85px; }.immersive-room .hand-card>.uno-card { width:62px; height:92px; }.immersive-room .hand-card+.hand-card { margin-left:-18px; }

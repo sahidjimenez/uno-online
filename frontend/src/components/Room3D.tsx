@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import type { GameEvent, GameState, Player } from '../types'
 import { canWalkTo, TABLE_RADIUS } from '../engine/roomNavigation'
 import { createCharacter } from '../engine/characterModel'
+import { detectCardDraws } from '../engine/cardDraws'
 import { characterForSeat, type CharacterAppearance } from '../lib/character'
 
 interface Props {
@@ -11,17 +12,20 @@ interface Props {
   playerId: string
   appearance: CharacterAppearance
   cardPlay: GameEvent | null
+  walking: boolean
+  showNames: boolean
   onFallback: () => void
 }
 const COLORS: Record<string, string> = { red: '#e77969', blue: '#639fc1', green: '#4aa993', yellow: '#d9b766', wild: '#555073' }
 const LABELS: Record<string, string> = { skip: '⊘', reverse: '⇄', draw2: '+2', wild: '◇', wild4: '+4' }
 
-export default function Room3D({ players, gameState, playerId, appearance, cardPlay, onFallback }: Props) {
+export default function Room3D({ players, gameState, playerId, appearance, cardPlay, walking, showNames, onFallback }: Props) {
   const host = useRef<HTMLDivElement>(null)
   const input = useRef(new Set<string>())
   const controller = useRef<{ reset: (walk: boolean) => void; update: (players: Player[], state: GameState, appearance: CharacterAppearance, pendingPlay: boolean) => void; play: (event: GameEvent) => void } | null>(null)
   const seenCard = useRef(cardPlay?.id)
-  const [walking, setWalking] = useState(false)
+  const namesVisible = useRef(showNames)
+  useEffect(() => { namesVisible.current = showNames }, [showNames])
   const [failed, setFailed] = useState(false)
 
   useEffect(() => {
@@ -125,6 +129,8 @@ export default function Room3D({ players, gameState, playerId, appearance, cardP
     const characters = new Map<string, ReturnType<typeof createCharacter>>()
     const flights: { mesh: THREE.Mesh; playerId: string; start: THREE.Vector3; released: boolean; landed: boolean; color: string; type: string; version: number; elapsed: number; dispose: () => void }[] = []
     let displayedVersion = -1
+    const draws: { playerId: string; cards: THREE.Mesh[]; label: THREE.Sprite; elapsed: number; duration: number; stagger: number; dispose: () => void }[] = []
+    let previousRoster: Player[] | null = null
     const pile: { mesh: THREE.Mesh; dispose: () => void }[] = []
     function placeOnPile(color: string, type: string, version: number) {
       if (version < displayedVersion) return
@@ -155,6 +161,25 @@ export default function Room3D({ players, gameState, playerId, appearance, cardP
       ctx.fillStyle = '#c9ebdc'; ctx.textAlign = 'center'; ctx.font = 'bold 29px sans-serif'; ctx.fillText('NEXO', 128, 197)
     }, 256, 384); resources.push(backMap)
     const backMat = new THREE.MeshBasicMaterial({ map: backMap }); resources.push(backMat)
+    const flyingBackMat = new THREE.MeshBasicMaterial({ map: backMap, side: THREE.DoubleSide }); resources.push(flyingBackMat)
+    function drawCards(playerId: string, name: string, count: number) {
+      const destination = handPositions.get(playerId)
+      if (!destination) return
+      const stagger = Math.min(0.13, 1.4 / Math.max(1, count - 1))
+      const duration = 0.95 + stagger * (count - 1)
+      const cards = Array.from({ length: count }, () => {
+        const card = flatCard(flyingBackMat, -0.45, 1.65, 0, 0, scene)
+        card.visible = false
+        return card
+      })
+      const map = sign(`+${count}`, `${name} · ${count === 1 ? '1 carta' : `${count} cartas`}`, '#ffe29a')
+      const mat = new THREE.SpriteMaterial({ map, transparent: true, depthTest: false })
+      const label = new THREE.Sprite(mat); label.scale.set(1.35, 0.675, 1)
+      label.position.copy(destination); label.position.y = 2.35; label.visible = false; scene.add(label)
+      const delay = Math.max(0, ...draws.filter(draw => draw.playerId === playerId).map(draw => draw.duration + 0.85 - draw.elapsed))
+      draws.push({ playerId, cards, label, elapsed: -delay, duration, stagger,
+        dispose: () => { cards.forEach(card => scene.remove(card)); scene.remove(label); mat.dispose(); map.dispose() } })
+    }
     function flatCard(mat: THREE.Material, x: number, y: number, z: number, rotation = 0, parent: THREE.Object3D = dynamic) {
       const card = new THREE.Mesh(cardGeometry, mat); card.rotation.set(-Math.PI / 2, 0, rotation); card.position.set(x, y, z); parent.add(card)
       return card
@@ -178,6 +203,8 @@ export default function Room3D({ players, gameState, playerId, appearance, cardP
     resources.push(chairGeometry, backGeometry, legGeometry)
     const chairMat = material('#487b70'), activeMat = material('#a9e6d6')
     function update(roster: Player[], state: GameState, myAppearance: CharacterAppearance, pendingPlay: boolean) {
+      const received = detectCardDraws(previousRoster, roster)
+      previousRoster = roster.map(player => ({ ...player }))
       clearDynamic()
       handPositions.clear(); characters.clear()
       const sorted = [...roster].sort((a, b) => a.seat_order - b.seat_order)
@@ -204,6 +231,7 @@ export default function Room3D({ players, gameState, playerId, appearance, cardP
         for (let c = 0; c < Math.min(player.hand_count ?? 0, 7); c++) flatCard(backMat, (c - (Math.min(player.hand_count ?? 0, 7) - 1) / 2) * 0.13, c * 0.003, 0, (c - 3) * 0.05, hand)
       })
       for (let i = 0; i < Math.min(state.draw_pile_count, 8); i++) flatCard(backMat, -0.45, 1.53 + i * 0.012, 0)
+      received.forEach(draw => drawCards(draw.playerId, draw.name, draw.count))
       // Keep the discard pile independent of roster/hand rebuilds and in-flight cards.
       if (!pendingPlay && flights.length === 0 && state.top_card_type && state.version > displayedVersion) {
         placeOnPile(state.top_card_color ?? 'wild', state.top_card_type, state.version)
@@ -257,6 +285,31 @@ export default function Room3D({ players, gameState, playerId, appearance, cardP
     renderer.setAnimationLoop(time => {
       const dt = Math.min((time - last) / 1000, 0.05); last = time
       if (document.hidden) return
+      for (let i = draws.length - 1; i >= 0; i--) {
+        const draw = draws[i]; draw.elapsed += dt
+        if (draw.elapsed < 0) continue
+        const character = characters.get(draw.playerId)
+        const destination = handPositions.get(draw.playerId)
+        if (!destination) { draw.dispose(); draws.splice(i, 1); continue }
+        const reach = Math.min(1, draw.elapsed / 0.25) * Math.max(0, Math.min(1, (draw.duration + 0.3 - draw.elapsed) / 0.4))
+        if (!flights.some(flight => flight.playerId === draw.playerId)) character?.poseArm(reach)
+        const hand = character?.handPosition() ?? destination
+        draw.cards.forEach((card, index) => {
+          const t = (draw.elapsed - index * draw.stagger) / 0.95
+          card.visible = t >= 0 && t < 1
+          if (!card.visible) return
+          const travel = Math.min(1, t / 0.78), eased = travel * travel * (3 - 2 * travel)
+          card.position.lerpVectors(new THREE.Vector3(-0.45, 1.65, 0), hand, eased)
+          card.position.y += 0.08 + Math.sin(travel * Math.PI) * 0.65
+          if (t > 0.78) card.position.lerp(destination, (t - 0.78) / 0.22)
+          card.rotation.set(-Math.PI / 2 + Math.sin(travel * Math.PI) * 0.45, 0, Math.sin(travel * Math.PI) * 0.3)
+          card.scale.setScalar(1 - Math.max(0, t - 0.78) / 0.22 * 0.35)
+        })
+        draw.label.visible = true
+        draw.label.position.y = 2.35 + Math.min(draw.elapsed, 1) * 0.15
+        ;(draw.label.material as THREE.SpriteMaterial).opacity = Math.min(1, draw.elapsed / 0.15) * Math.max(0, Math.min(1, (draw.duration + 0.85 - draw.elapsed) / 0.4))
+        if (draw.elapsed >= draw.duration + 0.85) { draw.dispose(); draws.splice(i, 1) }
+      }
       for (let i = flights.length - 1; i >= 0; i--) {
         const flight = flights[i]; flight.elapsed += dt
         const t = Math.min(1, flight.elapsed / 1.25)
@@ -295,7 +348,7 @@ export default function Room3D({ players, gameState, playerId, appearance, cardP
       }
       camera.rotation.set(pitch, yaw, 0, 'YXZ')
       for (const label of labels) {
-        label.visible = !flights.some(flight => flight.playerId === label.userData.playerId)
+        label.visible = namesVisible.current && !flights.some(flight => flight.playerId === label.userData.playerId)
         const scale = Math.min(1, camera.position.distanceTo(label.position) / 6)
         label.scale.set(1.45 * scale, 0.725 * scale, 1)
       }
@@ -307,7 +360,7 @@ export default function Room3D({ players, gameState, playerId, appearance, cardP
       canvas.removeEventListener('pointerup', up); canvas.removeEventListener('pointercancel', up); canvas.removeEventListener('webglcontextlost', lostContext)
       container.removeEventListener('keydown', keydown); container.removeEventListener('blur', clearInput)
       window.removeEventListener('keyup', keyup); window.removeEventListener('blur', clearInput); document.removeEventListener('visibilitychange', clearInput)
-      flights.forEach(flight => flight.dispose()); pile.forEach(card => card.dispose()); clearDynamic(); resources.forEach(resource => resource.dispose()); light.shadow.dispose(); renderer.dispose(); canvas.remove()
+      flights.forEach(flight => flight.dispose()); draws.forEach(draw => draw.dispose()); pile.forEach(card => card.dispose()); clearDynamic(); resources.forEach(resource => resource.dispose()); light.shadow.dispose(); renderer.dispose(); canvas.remove()
     }
   }, [playerId])
 
@@ -317,11 +370,10 @@ export default function Room3D({ players, gameState, playerId, appearance, cardP
     seenCard.current = cardPlay.id; controller.current?.play(cardPlay)
   }, [cardPlay])
 
-  function setMode(walk: boolean) { setWalking(walk); controller.current?.reset(walk); host.current?.focus() }
+  useEffect(() => { controller.current?.reset(walking); host.current?.focus({ preventScroll: true }) }, [walking, playerId])
   return <>
     <div ref={host} className="room3d-canvas" tabIndex={0} role="region" aria-label="Sala 3D. Arrastra para mirar. Espacio para subir y Shift para bajar. En modo recorrer, usa W A S D o las flechas para caminar." />
     <div className="room3d-controls">
-      <div className="room3d-mode"><button onClick={() => setMode(false)} aria-pressed={!walking}>Vista de mesa</button><button onClick={() => setMode(true)} aria-pressed={walking}>Recorrer sala</button></div>
       <p>{walking ? 'W A S D / flechas · Arrastra para mirar' : 'Arrastra para mirar · Tu mano siempre a la vista'}<br />Espacio: subir · Shift: bajar</p>
     </div>
     {walking && <div className="room3d-pad" aria-label="Controles para caminar" onContextMenu={event => event.preventDefault()}>

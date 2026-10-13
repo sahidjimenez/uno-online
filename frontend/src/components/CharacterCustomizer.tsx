@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { X } from 'lucide-react'
 import { CLOTHING_COLORS, HAIR_COLORS, HAIRSTYLES, saveCharacter, type CharacterAppearance } from '../lib/character'
 import { useCharacter } from '../hooks/useCharacter'
 import './CharacterCustomizer.css'
@@ -17,7 +18,7 @@ function Editor({ initial, onClose, onSave }: { initial: CharacterAppearance; on
   const dialog = useRef<HTMLDialogElement>(null)
   useEffect(() => { const element = dialog.current!; element.showModal(); return () => element.close() }, [])
   return createPortal(<dialog ref={dialog} className="character-dialog" aria-labelledby="character-title" onCancel={onClose}>
-    <header className="character-heading"><div><h2 id="character-title">Personaliza tu personaje</h2><p>Tu estilo en la mesa</p></div><button type="button" onClick={onClose} aria-label="Cerrar personalización">×</button></header>
+    <header className="character-heading"><div><h2 id="character-title">Personaliza tu personaje</h2><p>Tu estilo en la mesa</p></div><button type="button" onClick={onClose} aria-label="Cerrar personalización"><X size={22} aria-hidden="true" /></button></header>
     <div className="character-editor-body">
       <div className="character-preview-panel"><span className="character-preview-tag">VISTA PREVIA · 3D</span><Suspense fallback={<div className="character-preview-loading" role="status">Preparando tu personaje…</div>}><CharacterPreview appearance={draft} /></Suspense></div>
       <div className="character-options">

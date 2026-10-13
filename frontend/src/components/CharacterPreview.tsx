@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import * as THREE from 'three'
 import { createCharacter } from '../engine/characterModel'
 import type { CharacterAppearance } from '../lib/character'
@@ -54,9 +55,9 @@ export default function CharacterPreview({ appearance }: { appearance: Character
     <div ref={host} className="character-preview-canvas" role="img" aria-label={`Vista previa 3D de tu personaje: ${appearance.gender === 'woman' ? 'mujer' : 'hombre'}`} />
     {failed ? <p className="character-preview-fallback" role="status">Vista 3D no disponible. Puedes elegir los colores y guardar tu personaje.</p>
       : <div className="character-rotate">
-        <button type="button" aria-label="Girar personaje a la izquierda" onClick={() => setRotation(value => (value - 30 + 540) % 360 - 180)}>‹</button>
+        <button type="button" aria-label="Girar personaje a la izquierda" onClick={() => setRotation(value => (value - 30 + 540) % 360 - 180)}><ChevronLeft size={24} aria-hidden="true" /></button>
         <label>Girar personaje<input type="range" min="-180" max="180" value={rotation} onChange={event => setRotation(Number(event.target.value))} /></label>
-        <button type="button" aria-label="Girar personaje a la derecha" onClick={() => setRotation(value => (value + 30 + 540) % 360 - 180)}>›</button>
+        <button type="button" aria-label="Girar personaje a la derecha" onClick={() => setRotation(value => (value + 30 + 540) % 360 - 180)}><ChevronRight size={24} aria-hidden="true" /></button>
       </div>}
   </div>
 }
