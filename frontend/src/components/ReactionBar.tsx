@@ -22,8 +22,10 @@ export function ReactionBar({ session, players, local = false, onReaction }: { s
   const lastSent = useRef(0)
   useEffect(() => {
     if (local) return
-    const channel = supabase.channel(`reactions:${session.roomId}`, { config: { broadcast: { self: false, ack: true } } })
-      .on('broadcast', { event: 'reaction' }, ({ payload }) => {
+    const channel = supabase.channel(`reactions:${session.roomId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'room_messages', filter: `room_id=eq.${session.roomId}` }, ({ new: row }) => {
+        if (row.kind !== 'reaction' || row.player_id === session.playerId) return
+        const payload = row.payload
         if (!payload || typeof payload.id !== 'string' || typeof payload.playerId !== 'string' || !EMOJIS.some(item => item.emoji === payload.emoji)) return
         const now = Date.now()
         if (now - (recent.current.get(payload.playerId) ?? 0) < 1000) return
@@ -32,7 +34,7 @@ export function ReactionBar({ session, players, local = false, onReaction }: { s
       }).subscribe(status => setReady(status === 'SUBSCRIBED'))
     channelRef.current = channel
     return () => { channelRef.current = null; void supabase.removeChannel(channel) }
-  }, [local, session.roomId])
+  }, [local, session.roomId, session.playerId])
   useEffect(() => {
     if (!cooldown) return
     const timer = setTimeout(() => setCooldown(false), 1200)
@@ -49,8 +51,8 @@ export function ReactionBar({ session, players, local = false, onReaction }: { s
     receiveRef.current(reaction)
     if (!local && channelRef.current) {
       try {
-        const status = await channelRef.current.send({ type: 'broadcast', event: 'reaction', payload: reaction })
-        if (status !== 'ok') setError('No se pudo compartir la reacción')
+        const { error } = await supabase.rpc('send_room_message', { p_room: session.roomId, p_kind: 'reaction', p_payload: reaction })
+        if (error) setError('No se pudo compartir la reacción')
       } catch { setError('No se pudo compartir la reacción') }
     }
   }

@@ -362,7 +362,7 @@ export default function Room3D({ players, gameState, playerId, appearance, cardP
       for (const label of labels) {
         label.visible = namesVisible.current && !flights.some(flight => flight.playerId === label.userData.playerId)
         const scale = Math.min(1, camera.position.distanceTo(label.position) / 6)
-        label.scale.set(1.45 * scale, 0.725 * scale, 1)
+        label.scale.set(1.05 * scale, 0.525 * scale, 1)
       }
       renderer.render(scene, camera)
     })

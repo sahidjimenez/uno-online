@@ -1,4 +1,6 @@
 import { StatusScreen } from '../components/StatusScreen'
+import { NexoButton } from '../components/NexoButton'
+import { NexoAnnouncement } from '../components/NexoAnnouncement'
 import { TableMessages } from '../components/TableMessages'
 import { useEffectSounds } from '../hooks/useEffectSounds'
 import { detectTableEffect } from '../engine/tableEffects'
@@ -48,10 +50,9 @@ function BoardView({ session, onFinish, onExit, game }: Props & { game: ReturnTy
   const [visibility, setVisibility] = useState({ ...DEFAULT_VISIBILITY })
   const appearance = useCharacter()
   const [tableEffect, setTableEffect] = useState<{ type: NonNullable<ReturnType<typeof detectTableEffect>>['type'] | 'uno_penalty'; stack: number; id: string; playerId?: string } | null>(null)
-  const [unoAcknowledged, setUnoAcknowledged] = useState<string | null>(null)
-  const unoPending = useRef(false)
   const seenPenalty = useRef<string | null>(null)
-  const { soundEnabled, toggleSound } = useEffectSounds(tableEffect, game.cardPlay?.id)
+  const nexoAnnouncementId = lastEvent?.type === 'uno_called' && lastEvent.player_id !== session.playerId ? lastEvent.id : undefined
+  const { soundEnabled, toggleSound } = useEffectSounds(tableEffect, game.cardPlay?.id, nexoAnnouncementId)
   const previousState = useRef(gameState)
   const [prevHandIds,      setPrevHandIds]       = useState<Set<string>>(new Set())
   const [winBlockMsg,      setWinBlockMsg]       = useState<string | null>(null)
@@ -64,7 +65,7 @@ function BoardView({ session, onFinish, onExit, game }: Props & { game: ReturnTy
     if (actionLock.current || online?.syncError) return false
     actionLock.current = true; setActionPending(true); setActionError(null)
     try {
-      const result = await requestDeadline(signal => supabase.functions.invoke(name, { body, signal }))
+      const result = await requestDeadline(signal => supabase.functions.invoke(name, { body: { ...body, request_id: crypto.randomUUID() }, signal }))
       if (result.error || result.data?.error) throw new Error('La jugada no se pudo confirmar. Actualizamos la mesa antes de continuar.')
       if (online && !await online.refreshGame()) throw new Error('La jugada se envió, pero falta actualizar la mesa. Pulsa Reconectar antes de continuar.')
       return true
@@ -93,7 +94,17 @@ function BoardView({ session, onFinish, onExit, game }: Props & { game: ReturnTy
     [players, session.playerId]
   )
   const me = players.find(p => p.id === session.playerId)
-  useEffect(() => { if (myHand.length !== 1) setUnoAcknowledged(null) }, [myHand.length])
+  const currentPlayer = players.find(p => p.id === gameState?.current_player_id)
+  async function advanceAbsent() {
+    if (!online || actionLock.current) return
+    actionLock.current = true; setActionPending(true)
+    try {
+      const { error } = await requestDeadline(signal => supabase.rpc('advance_absent_player', { p_room: session.roomId }).abortSignal(signal))
+      if (error) throw error
+      await online.refreshGame()
+    } catch { setActionError('El jugador dispone de 90 segundos desde su última conexión para volver. Reintenta después.') }
+    finally { actionLock.current = false; setActionPending(false) }
+  }
 
   useEffect(() => {
     if (gameState && previousState.current) {
@@ -151,19 +162,9 @@ function BoardView({ session, onFinish, onExit, game }: Props & { game: ReturnTy
   }
 
   async function callUno() {
-    if (myHand.length !== 1 || me?.has_called_uno || unoPending.current || unoAcknowledged === myHand[0].id) return
-    unoPending.current = true
-    setUnoAcknowledged(myHand[0].id)
-    try {
-      if (localUno) localUno()
-      else {
-        if (!await performAction('call-uno', { room_id: session.roomId, player_id: session.playerId })) throw new Error('Aviso no confirmado')
-      }
-    } catch {
-      setUnoAcknowledged(null)
-      setWinBlockMsg('No se pudo avisar. Vuelve a pulsar ¡ÚLTIMA!')
-      setTimeout(() => setWinBlockMsg(null), 3000)
-    } finally { unoPending.current = false }
+    if (myHand.length !== 1 || me?.has_called_uno) return false
+    if (localUno) { localUno(); return true }
+    return performAction('call-uno', { room_id: session.roomId, player_id: session.playerId })
   }
 
   async function catchUno(accusedId: string) {
@@ -173,7 +174,7 @@ function BoardView({ session, onFinish, onExit, game }: Props & { game: ReturnTy
 
   async function handleReverseCounter() {
     if (!gameState) return
-    const revCard = myHand.find(c => c.card_type === 'reverse' && c.card_color === gameState.top_card_color)
+    const revCard = myHand.find(c => c.card_type === 'reverse' && c.card_color === gameState.current_color)
     if (revCard) await playCard(revCard)
   }
 
@@ -185,7 +186,6 @@ function BoardView({ session, onFinish, onExit, game }: Props & { game: ReturnTy
     )
   }
 
-  const currentPlayer = players.find(p => p.id === gameState.current_player_id)
   const colorNames = { red: 'Rojo', blue: 'Azul', green: 'Verde', yellow: 'Amarillo', wild: 'Comodín' }
 
   return (
@@ -198,7 +198,7 @@ function BoardView({ session, onFinish, onExit, game }: Props & { game: ReturnTy
         <Room3D players={players} gameState={gameState} playerId={session.playerId} appearance={appearance} cardPlay={game.cardPlay} walking={view === 'walk'} showNames={visibility.names} onFallback={() => setView('classic')} />
       </Suspense>}
       <header className="table-header">
-        <div className="table-brand"><strong>NEXO</strong><span>Mesa 3D</span></div>
+        <div className="table-brand"><strong>NEXO</strong><span>{room3D ? 'Mesa 3D' : 'Clásica'}</span></div>
         <div className="table-room-code">{localPlay ? 'MODO LOCAL' : 'SALA'} <strong>{localPlay ? 'CONTRA BOTS' : session.roomCode}</strong></div>
       </header>
       <button className="mobile-options-toggle" aria-expanded={optionsOpen} aria-controls="game-options" onClick={() => setOptionsOpen(value => !value)}>
@@ -207,6 +207,8 @@ function BoardView({ session, onFinish, onExit, game }: Props & { game: ReturnTy
       {optionsOpen && <button className="mobile-options-backdrop" aria-label="Cerrar opciones" onClick={() => setOptionsOpen(false)} />}
       <div id="game-options" className="game-options" onKeyDown={event => { if (event.key === 'Escape') setOptionsOpen(false) }}>
         <h2 className="mobile-options-title">A tu manera</h2>
+        {online && currentPlayer && !currentPlayer.is_connected && currentPlayer.id !== session.playerId &&
+          <button disabled={blocked} onClick={() => void advanceAbsent()}>Continuar sin {currentPlayer.name}<small>Disponible después de 90 segundos sin conexión</small></button>}
         {onExit && <button className="mobile-exit-game" onClick={onExit}>← Salir de la partida</button>}
         <div className="table-header-actions">
         <CharacterCustomizer compact />
@@ -297,8 +299,8 @@ function BoardView({ session, onFinish, onExit, game }: Props & { game: ReturnTy
           </div>
         </>}
 
-        {myHand.length === 1 && !me?.has_called_uno && unoAcknowledged !== myHand[0].id &&
-          <button onClick={callUno} className="table-uno-button">¡ÚLTIMA!<span>Avísalo antes de tu próximo turno</span></button>}
+        {myHand.length === 1 && <NexoButton key={myHand[0].id}
+          announced={!!me?.has_called_uno} onAnnounce={callUno} />}
 
         <section className="player-area" aria-label="Tu mano">
           <div className="player-hand-scroll">
@@ -325,6 +327,7 @@ function BoardView({ session, onFinish, onExit, game }: Props & { game: ReturnTy
       </main>
 
       <TableMessages session={session} players={players} local={!!localPlay} />
+      <NexoAnnouncement event={lastEvent} players={players} myPlayerId={session.playerId} />
 
       {/* Aviso de victoria bloqueada */}
       {winBlockMsg && (

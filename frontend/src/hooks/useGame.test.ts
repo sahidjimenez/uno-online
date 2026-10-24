@@ -19,7 +19,14 @@ vi.mock('../lib/supabase', () => ({ supabase: {
   },
   channel() { const channel = { on() { return channel }, subscribe() { return channel } }; return channel },
   removeChannel: vi.fn(),
-  rpc() { return { abortSignal: async () => ({ error: null }) } },
+  rpc(name: string) { return { abortSignal: () => {
+    if (name !== 'room_snapshot') return Promise.resolve({ error: null })
+    if (remote.stall) return new Promise(() => {})
+    return Promise.resolve({ data: {
+      gameState: { room_id: 'room', version: remote.version, current_player_id: 'me' },
+      players: [{ id: 'me', hand_count: 1 }], myHand: [{ id: `card-${remote.version}`, player_id: 'me' }],
+    }, error: remote.failHand ? new Error('network') : null })
+  } } },
 } }))
 let result: ReturnType<typeof useOnlineGame>
 let renderer: ReactTestRenderer

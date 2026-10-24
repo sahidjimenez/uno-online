@@ -3,6 +3,8 @@ import { createDeck, shuffle, type DeckCard } from '../engine/deck'
 import { applyCard, canPlay, canWinWith, nextPlayerIndex } from '../engine/rules'
 import type { Card, CardColor, GameEvent, GameState, LocalSession, Player } from '../types'
 
+export const LAST_CARD_ANNOUNCEMENT_MS = 5000
+
 export interface LocalGame {
   gameState: GameState
   players: Player[]
@@ -33,7 +35,7 @@ export function createLocalGame(session: LocalSession): LocalGame {
 function makeCard(card: DeckCard, playerId: string, roomId: string): Card {
   return { id: crypto.randomUUID(), player_id: playerId, room_id: roomId, card_color: card.color, card_type: card.type }
 }
-export function localAction(game: LocalGame, actor: string, action: 'play' | 'draw' | 'uno' | 'catch', cardId?: string, color?: CardColor, accused?: string): LocalGame {
+export function localAction(game: LocalGame, actor: string, action: 'play' | 'draw' | 'uno' | 'catch', cardId?: string, color?: CardColor, accused?: string, now = Date.now()): LocalGame {
   const state = game.gameState
   if (state.winner_id) return game
   if ((action === 'play' || action === 'draw') && actor !== state.current_player_id) return game
@@ -54,28 +56,37 @@ export function localAction(game: LocalGame, actor: string, action: 'play' | 'dr
       if (card) next.hands[id].push(makeCard(card, id, state.room_id))
     }
     next.players.find(p => p.id === id)!.has_called_uno = false
+    next.players.find(p => p.id === id)!.nexo_available_until = null
   }
   const advance = (skip = false) => {
     const incoming = next.players[nextPlayerIndex(player.seat_order, next.players.length, next.gameState.direction, skip)]
     next.gameState.current_player_id = incoming.id
     // A two-player skip/reverse keeps the same turn: allow time to announce.
-    if (incoming.id !== actor && next.hands[incoming.id].length === 1 && !incoming.has_called_uno) {
+    if (incoming.id !== actor && next.hands[incoming.id].length === 1 && !incoming.has_called_uno && (!incoming.nexo_available_until || Date.parse(incoming.nexo_available_until) <= now)) {
       draw(incoming.id, 4)
       penalizedId = incoming.id
     }
   }
   if (action === 'play') {
+    if (next.hands[actor].length === 1 && !player.has_called_uno && player.nexo_available_until) {
+      if (Date.parse(player.nexo_available_until) > now) return game
+      draw(actor, 4); penalizedId = actor
+    }
     const card = next.hands[actor].find(c => c.id === cardId)
     if (!card || !canPlay(card, state) || (next.hands[actor].length === 1 && !canWinWith(card))) return game
     if (card.card_color === 'wild' && (!color || color === 'wild')) return game
     next.hands[actor] = next.hands[actor].filter(c => c.id !== cardId)
     player.has_called_uno = false
+    player.nexo_available_until = next.hands[actor].length === 1 ? new Date(now + LAST_CARD_ANNOUNCEMENT_MS).toISOString() : null
     Object.assign(next.gameState, applyCard({ color: card.card_color, type: card.card_type }, color ?? null, state, next.players.length, player.seat_order))
     next.discard.push({ color: card.card_color, type: card.card_type })
     event = card.card_type === 'reverse' ? 'reverse_applied' : card.card_type === 'skip' ? 'skip_applied' : 'card_played'
     if (!next.hands[actor].length) { next.gameState.winner_id = actor; next.gameState.status = 'finished' }
     else advance(card.card_type === 'skip' || (card.card_type === 'reverse' && next.players.length === 2 && state.draw_stack === 0))
   } else if (action === 'draw') {
+    if (next.hands[actor].length === 1 && !player.has_called_uno && player.nexo_available_until && Date.parse(player.nexo_available_until) <= now) {
+      draw(actor, 4); penalizedId = actor
+    }
     const stack = state.draw_stack
     draw(actor, stack || 1)
     next.gameState.draw_stack = 0
@@ -84,11 +95,12 @@ export function localAction(game: LocalGame, actor: string, action: 'play' | 'dr
     if (stack || !drawn || !canPlay(drawn, next.gameState)) advance()
   } else if (action === 'uno') {
     if (next.hands[actor].length !== 1 || player.has_called_uno) return game
-    player.has_called_uno = true
-    event = 'uno_called'
+    if (actor === state.current_player_id && player.nexo_available_until && Date.parse(player.nexo_available_until) <= now) {
+      draw(actor, 4); penalizedId = actor; event = 'uno_penalty'
+    } else { player.has_called_uno = true; event = 'uno_called' }
   } else if (accused && accused !== actor) {
     const target = next.players.find(p => p.id === accused)
-    if (!target || next.hands[accused].length !== 1 || target.has_called_uno) return game
+    if (!target || next.hands[accused].length !== 1 || target.has_called_uno || (target.nexo_available_until && Date.parse(target.nexo_available_until) > now)) return game
     draw(accused, 4)
     penalizedId = accused
     event = 'uno_penalty'
@@ -116,6 +128,11 @@ export function useOfflineGame(session: LocalSession | null) {
   useEffect(() => {
     const actor = game.gameState.current_player_id
     if (!actor || actor === session?.playerId || game.gameState.winner_id) return
+    // Give the human time to announce, even against one bot at maximum speed.
+    // Announcing updates the game and resumes the usual bot timer.
+    const human = game.players.find(player => player.id === session?.playerId)
+    const needsAnnouncement = human && game.hands[human.id].length === 1 && !human.has_called_uno
+    const delay = needsAnnouncement ? Math.max(LAST_CARD_ANNOUNCEMENT_MS, 1100 / botSpeed) : 1100 / botSpeed
     const timer = setTimeout(() => {
       setGame(current => {
         const hand = current.hands[actor]
@@ -125,7 +142,7 @@ export function useOfflineGame(session: LocalSession | null) {
         if (next.hands[actor].length === 1) next = localAction(next, actor, 'uno')
         return next
       })
-    }, 1100 / botSpeed)
+    }, delay)
     return () => clearTimeout(timer)
   }, [game, session?.playerId, botSpeed])
   return { gameState: game.gameState, players: game.players, myHand: game.hands[session!.playerId], lastEvent: game.lastEvent, unoPenalty: game.unoPenalty,

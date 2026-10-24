@@ -7,8 +7,12 @@ export function saveSession(s: LocalSession) {
   sessionStorage.setItem(SESSION_KEY, JSON.stringify(s))
 }
 export function loadSession(): LocalSession | null {
-  const raw = sessionStorage.getItem(SESSION_KEY)
-  return raw ? JSON.parse(raw) : null
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY)
+    const value = raw ? JSON.parse(raw) : null
+    if (!value || !['playerId', 'roomId', 'roomCode', 'name'].every(key => typeof value[key] === 'string')) return null
+    return value as LocalSession
+  } catch { return null }
 }
 export function clearSession() {
   sessionStorage.removeItem(SESSION_KEY)
@@ -26,7 +30,7 @@ export async function createRoom(
     p_is_private: isPrivate,
     p_password:   password ?? null,
   })
-  if (error) throw new Error(error.message)
+  if (error || data?.error) throw new Error(error?.message ?? data.error)
 
   const session: LocalSession = {
     playerId: data.player_id,
@@ -50,7 +54,7 @@ export async function joinRoom(
     player_name: playerName,
     p_password:  password ?? null,
   })
-  if (error) throw new Error(error.message)
+  if (error || data?.error) throw new Error(error?.message ?? data.error)
 
   const session: LocalSession = {
     playerId: data.player_id,
@@ -66,7 +70,7 @@ export async function joinRoom(
 export async function findPublicRoom(playerName: string): Promise<LocalSession & { matched?: boolean }> {
   await ensureAnonSession()
   const { data, error } = await supabase.rpc('find_public_room', { player_name: playerName })
-  if (error) throw new Error(error.message)
+  if (error || data?.error) throw new Error(error?.message ?? data.error)
 
   const session: LocalSession & { matched?: boolean } = {
     playerId: data.player_id,
@@ -82,7 +86,8 @@ export async function findPublicRoom(playerName: string): Promise<LocalSession &
 // Reconectar con la sesión guardada
 export async function reconnect(code: string): Promise<LocalSession | null> {
   const { data, error } = await supabase.rpc('reconnect_player', { p_code: code.toUpperCase() })
-  if (error) throw new Error(error.message)
+  if (error?.code === 'P0001') { clearSession(); return null }
+  if (error || data?.error) throw new Error(error?.message ?? data.error)
   if (!data) return null
 
   const session: LocalSession = {
@@ -110,7 +115,7 @@ export async function fetchPlayers(roomId: string): Promise<Player[]> {
 export async function fetchRoomByCode(code: string): Promise<Room | null> {
   const { data } = await supabase
     .from('rooms')
-    .select('*')
+    .select('id,code,status,host_id,max_players,created_at,updated_at,is_private')
     .eq('code', code.toUpperCase())
     .single()
   return data ?? null
@@ -143,6 +148,6 @@ export interface PublicRoom {
 export async function listPublicRooms(): Promise<PublicRoom[]> {
   await ensureAnonSession()
   const { data, error } = await supabase.rpc('list_public_rooms')
-  if (error) throw new Error(error.message)
+  if (error || data?.error) throw new Error(error?.message ?? data.error)
   return (data as PublicRoom[]) ?? []
 }

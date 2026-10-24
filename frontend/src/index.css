@@ -210,3 +210,18 @@ button:focus-visible{outline:3px solid #a2fbd2;outline-offset:5px}
 .bot-speed-control select:focus-visible { outline:2px solid #a9e6d6; outline-offset:3px; }
 @media(max-width:700px) { .bot-speed-control { top:76px; right:12px; gap:5px; font-size:9px; }.bot-speed-control select { font-size:10px; padding:5px 7px; } }
 .game-connection-status { position:fixed; top:160px; left:50%; transform:translateX(-50%); z-index:45; max-width:min(540px,90vw); display:flex; align-items:center; gap:12px; background:#142d2ef2; border:1px solid #89b5a6; color:#e0f2e7; padding:8px 12px; border-radius:12px; font-size:12px; }.game-connection-status button { background:#b8dfcc; color:#142d25; border-radius:8px; padding:7px 10px; }.game-connection-status button:disabled { opacity:.5; }
+
+/* Keep the announcement above the full-width hand scroll area. */
+.table-uno-button { z-index:6; touch-action:manipulation; }
+.table-uno-button:disabled { opacity:1; }
+.nexo-announcement { position:fixed; top:110px; left:50%; transform:translateX(-50%); z-index:44; pointer-events:none; max-width:calc(100vw - 32px); padding:14px 24px; border:1px solid #bde7d2; border-radius:16px; background:#102b25f5; color:#e5fff1; box-shadow:0 8px 30px #0006; text-align:center; }
+.nexo-announcement strong { display:block; font-size:20px; overflow-wrap:anywhere; }
+.nexo-announcement span { display:block; margin-top:4px; font-size:13px; }
+.nexo-announcement { animation:nexo-announce 3.5s ease both; }
+@keyframes nexo-announce {
+  0% { opacity:0; transform:translate(-50%,-18px) scale(.8); }
+  10% { opacity:1; transform:translate(-50%,0) scale(1.06); }
+  16%,88% { opacity:1; transform:translate(-50%,0) scale(1); }
+  100% { opacity:0; transform:translate(-50%,-8px) scale(.98); }
+}
+@media(prefers-reduced-motion:reduce) { .nexo-announcement { animation:none; } }

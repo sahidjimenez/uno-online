@@ -9,7 +9,7 @@ export const VISIBILITY_GROUPS = [
   ['header', 'Cabecera', 'Personaje, sonido e información de la sala.'],
   ['players', 'Lista de jugadores', 'Resumen de jugadores y cantidad de cartas.'],
   ['speed', 'Velocidad de bots', 'Selector de velocidad en partidas locales.'],
-  ['actions', 'Acciones de juego', 'Mazo, carta en mesa y botón ¡ÚLTIMA!.'],
+  ['actions', 'Acciones de juego', 'Mazo, carta en mesa y botón ¡NEXO!.'],
   ['hand', 'Tu mano', 'Tus cartas y la indicación de turno.'],
   ['messages', 'Reacciones y voz', 'Botones de reacciones y notas de voz.'],
 ] as const

@@ -1,5 +1,16 @@
 # Backend — UNO Online
 
+
+## Fase 1 — validación y despliegue pendiente
+
+Las instrucciones de despliegue anteriores deben revisarse frente al historial del entorno: existen dos archivos con prefijo 006. No usar `SETUP_ALL.sql` como sustituto de las migraciones actuales. Las pruebas PGlite crean una base aislada leyendo todos los archivos por nombre, pero no certifican el historial del CLI de Supabase.
+
+Validación local desde `backend`: `npm test`; con Deno disponible, `deno task check` y `deno task test:edge`. Desde `frontend`: `npm test -- --run` y `npm run build`.
+
+El smoke test real es optativo y requiere exclusivamente un proyecto de pruebas independiente. Configurar `NEXO_STAGING_URL`, `NEXO_STAGING_ANON_KEY` y `NEXO_STAGING_CONFIRM_ISOLATED=yes`, después ejecutar `npm run test:staging`. Crea dos usuarios anónimos y una sala protegida, comprueba permisos, inicio repetido, reconexión y una partida completa con Realtime. Deja datos de prueba en ese proyecto y no sustituye pruebas manuales de pérdida de red ni carga. No lee automáticamente el `.env` del frontend. Nunca poner una service-role key como anon key.
+
+Orden de preparación: reconciliar historial y respaldar; terminar partidas anteriores; aplicar 012 → 013 → 014; actualizar las cinco Edge Functions; actualizar frontend compatible; ejecutar smoke test y comprobaciones visuales. Las partidas antiguas no tienen mazo persistido recuperable. Ensayar restauración antes de producción. Ninguno de estos pasos remotos se ha ejecutado en esta tarea.
+
 ## Stack
 Supabase (PostgreSQL + Realtime + Auth anónimo). No hay servidor Node.js propio.
 

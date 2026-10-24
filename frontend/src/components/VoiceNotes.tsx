@@ -62,8 +62,8 @@ export function VoiceNotes({ session, players, local, onNote }: { session: Local
   useEffect(() => {
     mounted.current = true
     if (!local) {
-      const sub = supabase.channel(`voice-notes:${session.roomId}`, { config: { broadcast: { self: false, ack: true } } })
-        .on('broadcast', { event: 'voice-note' }, ({ payload }) => receive(payload))
+      const sub = supabase.channel(`voice-notes:${session.roomId}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'room_messages', filter: `room_id=eq.${session.roomId}` }, ({ new: row }) => { if (row.kind === 'voice' && row.player_id !== session.playerId) receive(row.payload) })
         .subscribe(status => { if (mounted.current) setReady(status === 'SUBSCRIBED') })
       channel.current = sub
     }
@@ -94,7 +94,7 @@ export function VoiceNotes({ session, players, local, onNote }: { session: Local
       channel.current = null
       urls.current.forEach(url => URL.revokeObjectURL(url)); urls.current.clear()
     }
-  }, [session.roomId, local])
+  }, [session.roomId, session.playerId, local])
   useEffect(() => {
     if (!recording) return
     const timer = setInterval(() => {
@@ -159,12 +159,13 @@ export function VoiceNotes({ session, players, local, onNote }: { session: Local
     try {
       const bytes = new Uint8Array(await draft.blob.arrayBuffer())
       let binary = ''; bytes.forEach(byte => { binary += String.fromCharCode(byte) })
-      const packet: VoicePacket = { id: crypto.randomUUID(), playerId: session.playerId, audio: btoa(binary), mime: draft.blob.type, duration: draft.duration, expiresAt: Date.now() + VOICE_TTL }
+      let packet: VoicePacket = { id: crypto.randomUUID(), playerId: session.playerId, audio: btoa(binary), mime: draft.blob.type, duration: draft.duration, expiresAt: Date.now() + VOICE_TTL }
       if (!isVoicePacket(packet, members.current)) throw new Error('El formato o tamaño de la grabación no es válido. Prueba una nota más corta.')
       if (!local) {
         if (!channel.current) throw new Error('Sin conexión')
-        const result = await channel.current.send({ type: 'broadcast', event: 'voice-note', payload: packet })
-        if (result !== 'ok') throw new Error('No enviado')
+        const { data, error } = await supabase.rpc('send_room_message', { p_room: session.roomId, p_kind: 'voice', p_payload: packet })
+        if (error || !data) throw new Error('No enviado')
+        packet = data as VoicePacket
       }
       if (!mounted.current) return
       receive(packet)

@@ -1,0 +1,68 @@
+.tutorial { min-height:100dvh; background:radial-gradient(ellipse at 50% 55%,#254d43 0,#102a28 55%,#091b1c 100%); color:#edf6ed; padding:24px clamp(16px,4vw,64px) 40px; }
+.tutorial button { touch-action:manipulation; }
+.tutorial button:focus-visible { outline:3px solid #f9d887; outline-offset:5px; }
+.tutorial h1:focus { outline:none; }
+.tutorial-header,.tutorial-navigation { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.tutorial-header button,.tutorial-navigation button,.tutorial-finish>button { border:1px solid #a6c6b74d; border-radius:12px; padding:12px 18px; min-height:44px; }
+.tutorial-brand { font-size:26px; font-weight:900; letter-spacing:3px; }
+.tutorial-brand small { display:block; font-size:9px; color:#b5cdc0; letter-spacing:2px; }
+.tutorial-menu { max-width:1050px; margin:70px auto 0; }
+.tutorial-kicker { color:#e5c78a; font-size:11px; font-weight:800; letter-spacing:2px; }
+.tutorial-menu h1 { font-size:clamp(32px,5vw,58px); line-height:1.1; max-width:700px; margin:18px 0; font-weight:800; }
+.tutorial-menu>p { color:#bbcec4; max-width:600px; line-height:1.7; }
+.tutorial-progress { margin-top:28px; }
+.tutorial-levels { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin:18px 0 28px; }
+.tutorial-levels button { display:flex; flex-direction:column; gap:12px; text-align:left; padding:26px; border:1px solid #a6c6b74d; border-radius:20px; background:#25473c; min-height:230px; transition:background .2s; }
+.tutorial-levels button:hover:enabled { background:#345e4d; }
+.tutorial-levels button:disabled { opacity:.5; }
+.tutorial-level-number { font-size:32px; color:#e5c78a; }
+.tutorial-levels strong { font-size:20px; }
+.tutorial-levels button>span:not(:first-child),.tutorial-levels small { color:#c3d6c9; font-size:13px; }
+.tutorial-levels small { margin-top:auto; }
+.tutorial .tutorial-primary { background:#e9cc91; color:#142a24; font-weight:800; border:0; border-radius:12px; padding:14px 22px; min-height:48px; }
+.tutorial-note { font-size:12px; color:#b5cdc0; margin:20px auto; }
+.tutorial-lesson { max-width:900px; margin:24px auto 0; }
+.tutorial-navigation { font-size:12px; }
+.tutorial-coach { border-left:3px solid #e5c78a; background:#0c211ed9; border-radius:0 16px 16px 0; padding:18px 24px; margin:20px 0; }
+.tutorial-coach h1 { font-size:24px; font-weight:800; margin:6px 0; }
+.tutorial-coach p { color:#dfebe2; line-height:1.6; }
+.tutorial-coach small { display:block; color:#b5cdc0; margin-top:8px; }
+.tutorial-success { border-color:#9de0ae; }
+.tutorial-table { border:7px solid #76553a; border-radius:80px; padding:18px 20px; background:radial-gradient(ellipse,#35674d,#1b4434); box-shadow:0 18px 45px #0004,inset 0 0 40px #0003; }
+.tutorial-guide { display:flex; align-items:center; justify-content:center; gap:10px; font-size:13px; }
+.tutorial-guide small { color:#bbd4bf; }
+.tutorial-piles { display:flex; justify-content:center; gap:50px; margin:22px 0; }
+.tutorial-piles>div { display:flex; flex-direction:column; align-items:center; gap:10px; }
+.tutorial-piles>div>span { font-size:9px; letter-spacing:1px; text-transform:uppercase; }
+.tutorial-deck { display:block; border-radius:16px; }
+.tutorial-target { border-radius:16px; outline:3px solid #ffe4a0; outline-offset:5px; box-shadow:0 0 24px #f7cd6d55; }
+.tutorial-hand { display:flex; flex-wrap:wrap; justify-content:center; gap:20px; padding:14px 0 4px; }
+.tutorial-hand>div { position:relative; }
+.tutorial-hand>div>span { display:block; text-align:center; font-size:10px; margin:7px 0 3px; }
+.tutorial-hand-caption { text-align:center; color:#cee2d2; font-size:10px; margin:18px 0 0; }
+.tutorial-feedback { min-height:26px; margin-top:16px; text-align:center; color:#ffe4a0; font-size:14px; }
+.tutorial-finish { display:flex; justify-content:center; flex-wrap:wrap; gap:12px; }
+.tutorial-finish p { flex-basis:100%; text-align:center; color:#c3d6c9; font-size:13px; margin-top:10px; }
+.tutorial-entry { width:100%; margin-top:14px; min-height:48px; padding:12px 18px; border:1px solid #b6d3b755; border-radius:12px; color:#e9cc91; font-weight:700; }
+.tutorial-stack { text-align:center; color:#ffe4a0; font-weight:800; margin:12px; }
+.tutorial-announce { display:flex; justify-content:center; padding:20px; }
+.tutorial-challenge-intro { padding:30px; border:1px solid #a6c6b74d; border-radius:20px; background:#25473c; }
+.tutorial-challenge-intro p { margin-bottom:20px; line-height:1.6; }
+.tutorial-challenge-exit { position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:45; padding:12px 20px; background:#102a28; color:#ffe4a0; border:1px solid #e9cc91; border-radius:12px; font-size:12px; }
+@media(max-width:600px) {
+  .tutorial { padding:16px 12px 28px; }
+  .tutorial-header { align-items:flex-start; }
+  .tutorial-header button { font-size:11px; padding:10px; }
+  .tutorial-menu { margin-top:40px; }
+  .tutorial-levels { grid-template-columns:1fr; gap:12px; }
+  .tutorial-levels button { min-height:0; padding:18px; gap:8px; }
+  .tutorial-level-number { font-size:24px; }
+  .tutorial-coach { padding:14px; }
+  .tutorial-coach h1 { font-size:21px; }
+  .tutorial-coach p { font-size:14px; }
+  .tutorial-table { border-width:4px; border-radius:32px; padding:18px 8px; }
+  .tutorial-hand { gap:14px; }
+  .tutorial-hand .uno-card { width:62px; height:88px; }
+  .tutorial-piles { gap:32px; }
+  .tutorial-guide { flex-wrap:wrap; }
+}

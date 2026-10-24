@@ -7,7 +7,7 @@ interface Props {
   stack?: number
 }
 export function EffectOverlay({ type, byPlayer, color, stack = 0 }: Props) {
-  const title = type === 'uno_penalty' ? '¡Faltó decir ÚLTIMA!' : type === 'reverse' ? '¡Cambio de rumbo!' : type === 'draw_stack' ? '¡La presión aumenta!' : type === 'draw_resolved' ? '¡A robar cartas!' : '¡Turno saltado!'
+  const title = type === 'uno_penalty' ? '¡Faltó decir NEXO!' : type === 'reverse' ? '¡Cambio de rumbo!' : type === 'draw_stack' ? '¡La presión aumenta!' : type === 'draw_resolved' ? '¡A robar cartas!' : '¡Turno saltado!'
   return <div className={`table-effect effect-${type}`} role="status">
     <div className="effect-symbol" style={{ '--effect-color': color ? `var(--card-${color})` : '#a9e6d6' } as CSSProperties}>
       {type === 'reverse' ? '⇄' : type === 'skip' ? '⊘' : `+${stack}`}

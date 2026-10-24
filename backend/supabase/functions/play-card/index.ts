@@ -1,133 +1,31 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { corsResponse, json, err } from '../_shared/cors.ts'
-import type { CardColor, CardType } from '../_shared/deck.ts'
-
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return corsResponse()
-
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-  )
-
-  const { room_id, player_id, card_id, chosen_color, version } = await req.json()
-
-  const token = req.headers.get('Authorization')?.replace(/^Bearer /i, '')
-  if (!token) return err('No autorizado', 401)
-  const { data: auth, error: authError } = await supabase.auth.getUser(token)
-  if (authError || !auth.user) return err('No autorizado', 401)
-  const { data: owner } = await supabase.from('players').select('id').eq('id', player_id).eq('room_id', room_id).eq('user_id', auth.user.id).single()
-  if (!owner) return err('Jugador no autorizado', 403)
-
-  // 1. Cargar estado actual con bloqueo optimista
-  const { data: gs } = await supabase
-    .from('game_state').select('*').eq('room_id', room_id).single()
-  if (!gs)                            return err('Partida no encontrada', 404)
-  if (gs.version !== version)         return err('Estado desactualizado — recarga', 409)
-  if (gs.current_player_id !== player_id) return err('No es tu turno')
-  if (gs.status !== 'playing')        return err('La partida no está activa')
-
-  // 2. Verificar que la carta está en la mano del jugador
-  const { data: card } = await supabase
-    .from('hands').select('*').eq('id', card_id).eq('player_id', player_id).single()
-  if (!card) return err('Carta no encontrada en tu mano')
-
-  // 3. Validar si la carta puede jugarse
-  const stackActive = gs.draw_stack > 0
-
-  if (stackActive) {
-    // Con stack activo solo puedes apilar (+2, +4) o contraatacar con Reversa del mismo color
-    const isAddable  = card.card_type === 'draw2' || card.card_type === 'wild4'
-    const isReversal = card.card_type === 'reverse' && card.card_color === gs.current_color
-    if (!isAddable && !isReversal) return err('Debes apilar (+2/+4), contraatacar con Reversa del mismo color, o robar')
-  } else {
-    // Turno normal: mismo color, mismo tipo, o Wild
-    const matchColor = card.card_color === gs.current_color
-    const matchType  = card.card_type  === gs.top_card_type
-    const isWild     = card.card_type === 'wild' || card.card_type === 'wild4'
-    if (!matchColor && !matchType && !isWild) return err('Carta no válida para jugar')
-  }
-
-  // Wild sin color elegido
-  if ((card.card_type === 'wild' || card.card_type === 'wild4') && !chosen_color && !stackActive) {
-    return err('Debes elegir un color para la Wild')
-  }
-
-  // 4. Cargar jugadores para calcular siguiente turno
-  const { data: players } = await supabase
-    .from('players').select('id, seat_order').eq('room_id', room_id).order('seat_order')
-  if (!players) return err('Error cargando jugadores', 500)
-
-  const currentIdx = players.findIndex(p => p.id === player_id)
-  const count      = players.length
-
-  // 5. Calcular nuevo estado
-  let newDirection  = gs.direction as 1 | -1
-  let newDrawStack  = gs.draw_stack
-  let newColor      = (chosen_color ?? card.card_color) as CardColor
-  let newEventType  = 'card_played'
-  let skipNext      = false
-  let reverseCounter = false
-
-  switch (card.card_type as CardType) {
-    case 'skip':
-      skipNext     = true
-      newColor     = card.card_color
-      newEventType = 'skip_applied'
-      break
-    case 'reverse':
-      if (stackActive) {
-        // Contraataque: invertir dirección sin avanzar turno
-        // El jugador anterior (que mandó el stack) ahora debe robar
-        reverseCounter = true
-        newDirection   = (newDirection * -1) as 1 | -1
-        newColor       = card.card_color
-        newEventType   = 'reverse_applied'
-      } else {
-        newDirection = (newDirection * -1) as 1 | -1
-        newColor     = card.card_color
-        if (count === 2) skipNext = true  // Con 2p, Reverse actúa como Skip
-        newEventType = 'reverse_applied'
-      }
-      break
-    case 'draw2':
-      newDrawStack += 2
-      newColor      = card.card_color
-      newEventType  = 'draw_stack_added'
-      break
-    case 'wild4':
-      newDrawStack += 4
-      newColor      = chosen_color as CardColor
-      newEventType  = 'draw_stack_added'
-      break
-    case 'wild':
-      newColor     = chosen_color as CardColor
-      newEventType = 'color_chosen'
-      break
-    default:
-      newColor = card.card_color
-  }
-
-  // 6. Calcular quién juega después
-  let nextIdx: number
-  if (reverseCounter) {
-    // La penalidad regresa al jugador anterior: 1 paso en la nueva dirección
-    // (la dirección ya fue invertida, así que +1 paso nos lleva de vuelta al que envió el stack)
-    nextIdx = ((currentIdx + newDirection) % count + count) % count
-  } else if (skipNext) {
-    nextIdx = ((currentIdx + newDirection * 2) % count + count) % count
-  } else {
-    nextIdx = ((currentIdx + newDirection) % count + count) % count
-  }
-  const nextPlayerId = players[nextIdx].id
-
-  const { data, error } = await supabase.rpc('commit_game_action', {
-    p_room: room_id, p_player: player_id, p_version: version, p_card: card_id, p_cards: [],
-    p_state: { current_player_id: nextPlayerId, direction: newDirection, current_color: newColor,
-      top_card_color: card.card_color, top_card_type: card.card_type, draw_stack: newDrawStack },
-    p_event: { type: newEventType, payload: { card: { color: card.card_color, type: card.card_type },
-      chosen_color: chosen_color ?? null, next_player: nextPlayerId, draw_stack: newDrawStack } },
+import { action, rpcResult } from '../_shared/action.ts'
+import { err } from '../_shared/cors.ts'
+import { canPlay, applyCard, nextPlayerIndex } from '../_shared/rules.ts'
+Deno.serve(action(async (db, body) => {
+  const { room_id, player_id, card_id, chosen_color, version, request_id } = body
+  if (!Number.isSafeInteger(version) || !card_id) return err('Carta y versión requeridas')
+  const { data: gs, error: gsError } = await db.from('game_state').select('*').eq('room_id', room_id).single()
+  if (gsError || !gs) return err('Partida no encontrada', 404)
+  if (gs.version !== version) return err('Estado desactualizado; actualiza la mesa', 409)
+  if (gs.status !== 'playing' || gs.current_player_id !== player_id) return err('No es tu turno')
+  const { data: card } = await db.from('hands').select('*').eq('id', card_id).eq('player_id', player_id).eq('room_id', room_id).single()
+  if (!card || !canPlay(card, gs)) return err('Carta no válida')
+  if (['wild', 'wild4'].includes(card.card_type) && (typeof chosen_color !== 'string' || !['red', 'blue', 'green', 'yellow'].includes(chosen_color))) return err('Elige un color válido')
+  const { data: players } = await db.from('players').select('id,seat_order').eq('room_id', room_id).order('seat_order')
+  if (!players?.length) return err('Participantes no encontrados')
+  const index = players.findIndex(p => p.id === player_id)
+  if (index < 0) return err('Jugador no autorizado', 403)
+  const update = applyCard({ color: card.card_color, type: card.card_type }, chosen_color as never, gs, players.length, index)
+  const direction = update.direction ?? gs.direction
+  const skip = card.card_type === 'skip' || (card.card_type === 'reverse' && players.length === 2 && gs.draw_stack === 0)
+  const next = players[nextPlayerIndex(index, players.length, direction, skip)].id
+  const type = card.card_type === 'reverse' ? 'reverse_applied' : card.card_type === 'skip' ? 'skip_applied'
+    : ['draw2', 'wild4'].includes(card.card_type) ? 'draw_stack_added' : card.card_type === 'wild' ? 'color_chosen' : 'card_played'
+  const { data, error } = await db.rpc('commit_game_action', {
+    p_room: room_id, p_player: player_id, p_version: version, p_card: card_id, p_cards: [], p_request: request_id,
+    p_state: { direction, draw_stack: gs.draw_stack, ...update, current_player_id: next },
+    p_event: { type, payload: { card: { color: card.card_color, type: card.card_type }, chosen_color,
+      next_player: next, draw_stack: update.draw_stack ?? gs.draw_stack, counterattack: card.card_type === 'reverse' && gs.draw_stack > 0 } },
   })
-  if (error) return err(error.message, error.code === '40001' ? 409 : 400)
-  return json({ ...data, next_player_id: nextPlayerId })
-})
+  return rpcResult(data, error)
+}))

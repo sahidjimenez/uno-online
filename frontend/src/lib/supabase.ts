@@ -17,10 +17,15 @@ export const supabase = createClient(url || 'http://127.0.0.1:54321', key || 'of
 })
 
 // Iniciar sesión anónima si no existe
-export async function ensureAnonSession() {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) {
-    const { error } = await supabase.auth.signInAnonymously()
-    if (error) throw error
-  }
+let sessionRequest: Promise<void> | null = null
+export function ensureAnonSession() {
+  if (!sessionRequest) sessionRequest = (async () => {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    if (sessionError) throw sessionError
+    if (!session) {
+      const { error } = await supabase.auth.signInAnonymously()
+      if (error) throw error
+    }
+  })().finally(() => { sessionRequest = null })
+  return sessionRequest
 }

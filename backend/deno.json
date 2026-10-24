@@ -1,0 +1,7 @@
+{
+  "nodeModulesDir": "none",
+  "tasks": {
+    "check": "deno check supabase/functions/start-game/index.ts supabase/functions/play-card/index.ts supabase/functions/draw-card/index.ts supabase/functions/call-uno/index.ts supabase/functions/penalize-uno/index.ts",
+    "test:edge": "deno test --allow-env --allow-net=127.0.0.1 tests/action-auth.deno.ts"
+  }
+}

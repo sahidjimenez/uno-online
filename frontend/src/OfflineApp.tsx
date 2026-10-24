@@ -6,7 +6,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { CharacterCustomizer } from './components/CharacterCustomizer'
 import type { LocalSession, Player } from './types'
 
-export function OfflineApp({ onOnline }: { onOnline: () => void }) {
+export function OfflineApp({ onOnline, onLearn }: { onOnline: () => void; onLearn: () => void }) {
   const [name, setName] = useState('')
   const [playerCount, setPlayerCount] = useState(4)
   const [session, setSession] = useState<LocalSession | null>(null)
@@ -39,6 +39,7 @@ export function OfflineApp({ onOnline }: { onOnline: () => void }) {
           </fieldset>
           <button className="local-start-button w-full bg-uno-red font-bold py-4 rounded-xl hover:brightness-110">Empezar partida <span aria-hidden="true">↗</span></button>
         </form>
+        <button className="tutorial-entry" onClick={onLearn}>Aprender a jugar · 7 niveles →</button>
         <p className="entrance-footnote">Tú + {playerCount - 1} bots · Solo números para ganar</p>
     </Entrance>
   )

@@ -7,6 +7,7 @@ import { CharacterCustomizer } from '../components/CharacterCustomizer'
 
 interface Props {
   onLocal: () => void
+  onLearn: () => void
   onEnter: (session: LocalSession, mode: 'lobby') => void
 }
 
@@ -136,9 +137,9 @@ function RulesModal({ onClose }: { onClose: () => void }) {
 
         <Section title="📢 Última carta">
           <ul>
-            <li>Cuando te quede <strong>1 carta</strong>, debes gritar <strong>¡ÚLTIMA!</strong> antes de que otro jugador lo note.</li>
-            <li>Si te pillan sin avisar de tu última carta, recibes <strong>4 cartas de penalización</strong> (regla europea).</li>
-            <li>Si llega tu siguiente turno y aún no pulsaste <strong>¡ÚLTIMA!</strong>, robas automáticamente <strong>4 cartas</strong> y puedes continuar tu turno. El botón desaparece al avisar.</li>
+            <li>Cuando te quede <strong>1 carta</strong>, pulsa <strong>¡NEXO!</strong>. Tienes una protección mínima de <strong>5 segundos</strong> desde la jugada.</li>
+            <li>Después de esa protección, otro jugador puede detectar la omisión y hacerte robar <strong>4 cartas</strong>.</li>
+            <li>Si vuelve tu turno sin avisar, se aplica la penalización al vencer la protección. Si el turno vuelve antes, anuncia NEXO antes de jugar tu última carta.</li>
           </ul>
         </Section>
 
@@ -178,7 +179,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-export function Home({ onEnter, onLocal }: Props) {
+export function Home({ onEnter, onLocal, onLearn }: Props) {
   const [name,       setName]       = useState('')
   const [code,       setCode]       = useState('')
   const [password,   setPassword]   = useState('')
@@ -415,6 +416,7 @@ export function Home({ onEnter, onLocal }: Props) {
 
       {error && <p role="alert" className="text-uno-red text-sm text-center mt-4">{error}</p>}
 
+      <button className="tutorial-entry" onClick={onLearn}>Aprender a jugar · 7 niveles →</button>
       <p className="online-features">◈ 2–8 jugadores <span>↻ Reglas europeas</span> <span>☺ Reacciones en vivo</span></p>
     </Entrance>
   )

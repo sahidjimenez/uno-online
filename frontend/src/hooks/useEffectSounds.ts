@@ -5,7 +5,7 @@ interface SoundEffect { id: string; type: SoundType; stack: number }
 const STORAGE_KEY = 'nexo-sound-enabled'
 
 // Original synthesized cues: no downloaded audio assets.
-export function useEffectSounds(effect: SoundEffect | null, cardPlayId?: string) {
+export function useEffectSounds(effect: SoundEffect | null, cardPlayId?: string, nexoAnnouncementId?: string) {
   const [enabled, setEnabled] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEY) !== 'false' } catch { return true }
   })
@@ -14,6 +14,7 @@ export function useEffectSounds(effect: SoundEffect | null, cardPlayId?: string)
   const enabledRef = useRef(enabled)
   const playedRef = useRef<string | null>(null)
   const playedCardRef = useRef(cardPlayId)
+  const playedNexoRef = useRef<string | undefined>()
   const unlock = useCallback(() => {
     if (!enabledRef.current || !window.AudioContext) return
     try {
@@ -103,6 +104,25 @@ export function useEffectSounds(effect: SoundEffect | null, cardPlayId?: string)
     tap.connect(tapGain); tapGain.connect(master); tap.start(start + 1.03); tap.stop(start + 1.12)
     tap.onended = () => { tap.disconnect(); tapGain.disconnect() }
   }, [cardPlayId])
+  useEffect(() => {
+    if (!nexoAnnouncementId || playedNexoRef.current === nexoAnnouncementId) return
+    playedNexoRef.current = nexoAnnouncementId
+    const context = contextRef.current, master = masterRef.current
+    if (!enabledRef.current || !context || !master || context.state !== 'running' || document.hidden) return
+    // A bright, short three-note chime for the last-card announcement.
+    ;[659.25, 830.61, 1318.51].forEach((frequency, index) => {
+      const oscillator = context.createOscillator(), envelope = context.createGain()
+      const start = context.currentTime + index * 0.13
+      oscillator.type = 'sine'
+      oscillator.frequency.setValueAtTime(frequency, start)
+      envelope.gain.setValueAtTime(0, start)
+      envelope.gain.linearRampToValueAtTime(0.32, start + 0.012)
+      envelope.gain.exponentialRampToValueAtTime(0.001, start + 0.32)
+      oscillator.connect(envelope); envelope.connect(master)
+      oscillator.start(start); oscillator.stop(start + 0.34)
+      oscillator.onended = () => { oscillator.disconnect(); envelope.disconnect() }
+    })
+  }, [nexoAnnouncementId])
   const toggle = useCallback(() => {
     const next = !enabledRef.current
     enabledRef.current = next

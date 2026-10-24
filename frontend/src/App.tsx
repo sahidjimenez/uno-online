@@ -9,11 +9,12 @@ import { Lobby }         from './pages/Lobby'
 import { Board }         from './pages/Board'
 import { GameOver }      from './pages/GameOver'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { Tutorial } from './pages/Tutorial'
 import type { LocalSession, Player } from './types'
 
 type Screen = 'home' | 'lobby' | 'board' | 'gameover'
 
-function OnlineApp({ onLocal }: { onLocal: () => void }) {
+function OnlineApp({ onLocal, onLearn }: { onLocal: () => void; onLearn: () => void }) {
   const [screen,   setScreen]   = useState<Screen>('home')
   const [session,  setSession]  = useState<LocalSession | null>(null)
   const [winner,   setWinner]   = useState<string | null>(null)
@@ -62,6 +63,7 @@ function OnlineApp({ onLocal }: { onLocal: () => void }) {
       {screen === 'home' && (
         <Home
           onLocal={onLocal}
+          onLearn={onLearn}
           onEnter={(s, mode) => {
             setSession(s)
             setScreen(mode)
@@ -105,5 +107,7 @@ function OnlineApp({ onLocal }: { onLocal: () => void }) {
 
 export default function App() {
   const [local, setLocal] = useState(OFFLINE_MODE)
-  return local ? <OfflineApp onOnline={() => setLocal(false)} /> : <OnlineApp onLocal={() => setLocal(true)} />
+  const [learning, setLearning] = useState(false)
+  if (learning) return <Tutorial onExit={() => setLearning(false)} onPractice={() => { setLocal(true); setLearning(false) }} />
+  return local ? <OfflineApp onOnline={() => setLocal(false)} onLearn={() => setLearning(true)} /> : <OnlineApp onLocal={() => setLocal(true)} onLearn={() => setLearning(true)} />
 }

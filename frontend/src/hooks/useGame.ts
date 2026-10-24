@@ -29,16 +29,9 @@ export function useOnlineGame(session: LocalSession | null) {
             dirty = false
             if (!navigator.onLine) throw new Error('Sin conexión. Conservamos tu mesa y reintentaremos al volver internet.')
             const next = await requestDeadline(async signal => {
-              const gs = await supabase.from('game_state').select('*').eq('room_id', roomId).abortSignal(signal).single()
-              const [ps, hand] = await Promise.all([
-                supabase.from('players').select('*').eq('room_id', roomId).order('seat_order').abortSignal(signal),
-                supabase.from('hands').select('*').eq('player_id', playerId).order('created_at').abortSignal(signal),
-              ])
-              if (gs.error || ps.error || hand.error || !gs.data) throw new Error('No pudimos actualizar la mesa. Estamos intentando reconectar.')
-              const check = await supabase.from('game_state').select('version').eq('room_id', roomId).abortSignal(signal).single()
-              if (check.error) throw check.error
-              if (check.data.version !== gs.data.version) return null
-              return { gameState: gs.data as GameState, players: ps.data as Player[], myHand: hand.data as Card[] }
+              const { data, error } = await supabase.rpc('room_snapshot', { p_room: roomId }).abortSignal(signal)
+              if (error || !data?.gameState) throw new Error('No pudimos actualizar la mesa. Estamos intentando reconectar.')
+              return data as { gameState: GameState; players: Player[]; myHand: Card[] }
             })
             if (disposed) return false
             if (!next) { dirty = true; continue }
